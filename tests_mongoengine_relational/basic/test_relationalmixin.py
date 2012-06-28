@@ -3,16 +3,16 @@ from __future__ import unicode_literals
 
 import unittest
 
-from tests_pp.utils import FauxSave, Struct, get_object_id
+from tests_mongoengine_relational.utils import FauxSave, Struct, get_object_id
 
 from pyramid import testing
 from pyramid.response import Response
 from pyramid.request import Request
 
 from mongoengine import *
-from mongoengine_relational.relationalmixin import RelationManagerMixin, ReferenceField, ListField, GenericReferenceField
-from bson.objectid import ObjectId
-from bson.dbref import DBRef
+from mongoengine_relational import *
+from bson import DBRef, ObjectId
+
 
 class User( RelationManagerMixin, Document ):
     name = StringField()
@@ -62,7 +62,6 @@ class RelationsTestCase( unittest.TestCase ):
     def setUp( self ):
         # Setup application/request config
         self.request = Request.blank( '/api/v1/' )
-        self.request.user = User( id=get_object_id(), email='dude@progressivecompany.com', password='dude' )
         self.config = testing.setUp( request=self.request )
 
         # Setup data
