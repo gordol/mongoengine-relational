@@ -8,6 +8,10 @@ from bson import DBRef
 
 
 class BaseList( list ):
+    '''
+    Overridden `BaseList`, so we can track changes made to `toMany` relations.
+    '''
+
     _dereferenced = False
     _instance = None
     _observer = None
@@ -211,9 +215,68 @@ class RelationManagerMixin( object ):
 
 
     def __setattr__( self, name, value ):
+        '''
+        Overridden to track changes on simple `ReferenceField`s.
+        '''
         if self._initialised and name != '_initialised':
             self.update_hasone( name, value )
+
         super( RelationManagerMixin, self ).__setattr__( name, value )
+
+
+    def _init_memo( self ):
+        '''
+        Memoize reference fields to monitor changes.
+        '''
+        if not hasattr( self, '_memo_hasmany' ):
+            self._memo_hasmany = {}
+        if not hasattr( self, '_memo_hasone' ):
+            self._memo_hasone = {}
+
+        for name, field in self._fields.iteritems():
+            if isinstance( field, ReferenceField ) or isinstance( field, GenericReferenceField ):
+                self._memo_hasone[ name ] = None
+                related_doc_type = getattr( field, 'document_type', None )
+            elif isinstance( field, ListField ):
+                # If the ListField contains references, memoize it
+                if isinstance( field.field, ReferenceField ) or isinstance( field.field, GenericReferenceField ):
+                    self._memo_hasmany[ name ] = set()
+                    related_doc_type = field.field.document_type
+                else:
+                    related_doc_type = None
+            else:
+                related_doc_type = None
+
+            # If 'field' is relational and has a 'related_name', check whether the field
+            # we refer to exists on the other document and points back to this Document.
+            # This only works on normal `ReferenceField`s; `GenericReferenceField`s go unchecked,
+            # since any type of document could potentially end up in one.
+            if related_doc_type and hasattr( field, 'related_name' ):
+                if field.related_name not in related_doc_type._fields:
+                    raise RelationalError("You should add a field `{}` with `related_name='{}'` to the `{}` Document.".format(field.related_name, name, related_doc_type._class_name ) )
+
+                related_field = related_doc_type._fields[ field.related_name ]
+                if not hasattr( related_field, 'related_name' ):
+                    raise RelationalError( "You should add `related_name={}` to the definition of `{}` on the `{}` Document".format( name, related_field.name, related_doc_type._class_name ) )
+                elif related_field.related_name != name:
+                    raise RelationalError( "The field `{}` of `{}` has `related_name='{}'`; should this be `related_name='{}'`?".format( related_field.name, related_doc_type._class_name, related_field.related_name, name ) )
+
+                    #print( '  %s <-> %s.%s' % ( name, related_doc_type._class_name, related_field.name ) )
+
+
+    def _memoize_related_fields( self ):
+        '''
+        Creates a copy of the items in our managed fields so we can compare any changes.
+        '''
+        if not self.pk:
+            return False
+
+        for field_name in self._memo_hasone.keys():
+            # Remember a single reference
+            self._memo_hasone[ field_name ] = self._data[ field_name ]
+        for field_name in self._memo_hasmany.keys():
+            # Remember a set of references
+            self._memo_hasmany[ field_name ] = set( self._data[ field_name ] )
 
 
     def save( self, safe=True, force_insert=False, validate=True, write_options=None, cascade=None, cascade_kwargs=None,
@@ -286,79 +349,11 @@ class RelationManagerMixin( object ):
             # Determine which callback to use. If a callback exists, invoke it.
             method = getattr( self, 'on_change_{}'.format( field_name ), None )
             if callable( method ):
-                # Make sure we get actual (dereferenced) documents
-                new_value = self[ field_name ]
-
-                if field_name in self._memo_hasone:
-                    old_value = self._memo_hasone[ field_name ]
-                    added_docs = None
-                    removed_docs = None
-                elif field_name in self._memo_hasmany:
-                    old_value = self._memo_hasmany[ field_name ]
-                    added_docs = self._set_difference( new_value, old_value )
-                    removed_docs = self._set_difference( old_value, new_value )
-                else:
-                    raise RelationalError( "Can't find _memo entry for field_name={}".format( field_name ) )
-
+                new_value, old_value, added_docs, removed_docs = self.get_changes_for_relation( field_name )
                 method( value=new_value, old_value=old_value, request=request, field_name=field_name, added_docs=added_docs, removed_docs=removed_docs )
 
         # Sync the memos with the current Document state
         self._memoize_related_fields()
-
-
-    def _init_memo( self ):
-        '''
-        Memoize reference fields to monitor changes.
-        '''
-        if not hasattr( self, '_memo_hasmany' ):
-            self._memo_hasmany = {}
-        if not hasattr( self, '_memo_hasone' ):
-            self._memo_hasone = {}
-
-        for name, field in self._fields.iteritems():
-            if isinstance( field, ReferenceField ) or isinstance( field, GenericReferenceField ):
-                self._memo_hasone[ name ] = None
-                related_doc_type = getattr( field, 'document_type', None )
-            elif isinstance( field, ListField ):
-                # If the ListField contains references, memoize it
-                if isinstance( field.field, ReferenceField ) or isinstance( field.field, GenericReferenceField ):
-                    self._memo_hasmany[ name ] = set()
-                    related_doc_type = field.field.document_type
-                else:
-                    related_doc_type = None
-            else:
-                related_doc_type = None
-
-            # If 'field' is relational and has a 'related_name', check whether the field
-            # we refer to exists on the other document and points back to this Document.
-            # This only works on normal `ReferenceField`s; `GenericReferenceField`s go unchecked,
-            # since any type of document could potentially end up in one.
-            if related_doc_type and hasattr( field, 'related_name' ):
-                if field.related_name not in related_doc_type._fields:
-                    raise RelationalError("You should add a field `{}` with `related_name='{}'` to the `{}` Document.".format(field.related_name, name, related_doc_type._class_name ) )
-
-                related_field = related_doc_type._fields[ field.related_name ]
-                if not hasattr( related_field, 'related_name' ):
-                    raise RelationalError( "You should add `related_name={}` to the definition of `{}` on the `{}` Document".format( name, related_field.name, related_doc_type._class_name ) )
-                elif related_field.related_name != name:
-                    raise RelationalError( "The field `{}` of `{}` has `related_name='{}'`; should this be `related_name='{}'`?".format( related_field.name, related_doc_type._class_name, related_field.related_name, name ) )
-
-                #print( '  %s <-> %s.%s' % ( name, related_doc_type._class_name, related_field.name ) )
-
-
-    def _memoize_related_fields( self ):
-        '''
-        Creates a copy of the items in our managed fields so we can compare any changes.
-        '''
-        if not self.pk:
-            return False
-
-        for field_name in self._memo_hasone.keys():
-            # Remember a single reference
-            self._memo_hasone[ field_name ] = self._data[ field_name ]
-        for field_name in self._memo_hasmany.keys():
-            # Remember a set of references
-            self._memo_hasmany[ field_name ] = set( self._data[ field_name ] )
 
 
     def get_changed_relations( self ):
@@ -384,6 +379,35 @@ class RelationManagerMixin( object ):
                 changed_fields.add( field_name )
 
         return changed_fields
+
+
+    def get_changes_for_relation( self, field_name ):
+        '''
+        Get the changeset for a single relation. This returns a tuple with four values:
+        - old_value
+        - new_value
+        - added_docs
+        - removed_docs
+
+        @param field_name:
+        @return:
+        @rtype: tuple
+        '''
+        # Make sure we get actual (dereferenced) documents
+        new_value = self[ field_name ]
+
+        if field_name in self._memo_hasone:
+            old_value = self._memo_hasone[ field_name ]
+            added_docs = None
+            removed_docs = None
+        elif field_name in self._memo_hasmany:
+            old_value = self._memo_hasmany[ field_name ]
+            added_docs = self._set_difference( new_value, old_value )
+            removed_docs = self._set_difference( old_value, new_value )
+        else:
+            raise RelationalError( "Can't find _memo entry for field_name={}".format( field_name ) )
+
+        return new_value, old_value, added_docs, removed_docs
 
 
     def _set_difference( self, first_set, second_set ):
@@ -518,17 +542,3 @@ class RelationManagerMixin( object ):
             if hasattr( field, 'related_name' ):
                 # the other side of the relation is always a 'hasone'
                 value.update_hasone( field.related_name, None )
-
-
-    def check_consistency( self, options=None ):
-        """
-        Goal of this function is to check whether fields referring to each other
-        through a 'related_name' argument are consistent.
-        
-        We need to think a bit about what to do with inconsistencies, possibly
-        allowing a call to this class with options
-        """
-        if options is None:
-            options = {}
-
-        pass
