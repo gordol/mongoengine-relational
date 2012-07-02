@@ -407,37 +407,26 @@ class RelationManagerMixin( object ):
 
     def get_changes_for_relation( self, field_name ):
         '''
-        Get the changeset for a single relation. 
-        This returns a tuple with four values of which 2 will be None depending
-        on the type of relation: 
-
-        for hasOne:
-        - new_value
-        - old_value
-
-        For hasMany:
-        - added_docs
-        - removed_docs
+        Get the changeset for a single relation.
 
         @param field_name:
-        @return:
+        @return: a tuple containing two values. The first contains a set of added/new Documents;
+            the second a set of removed/old Documents.
         @rtype: tuple
         '''
-        # Make sure we get actual (dereferenced) documents
+        # Make sure we get actual, (dereferenced) document(s)
         new_value = self[ field_name ]
 
         if field_name in self._memo_hasone:
             old_value = self._memo_hasone[ field_name ]
-            added_docs = None
-            removed_docs = None
+            return set( new_value ), set( old_value )
         elif field_name in self._memo_hasmany:
             old_value = self._memo_hasmany[ field_name ]
             added_docs = self._set_difference( new_value, old_value )
             removed_docs = self._set_difference( old_value, new_value )
+            return added_docs, removed_docs
         else:
             raise RelationalError( "Can't find _memo entry for field_name={}".format( field_name ) )
-
-        return new_value, old_value, added_docs, removed_docs
 
 
     def _set_difference( self, first_set, second_set ):
