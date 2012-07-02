@@ -448,7 +448,7 @@ class RelationManagerMixin( object ):
                 except IndexError as e:
                     raise ValidationError( 'Cannot find Document for DBRef={}'.format( doc_or_ref ) )
 
-        for doc in removed_docs:
+        for doc_or_ref in removed_docs:
             if isinstance( doc_or_ref, DBRef ):
                 try:
                     doc = filter( lambda doc: doc._equals( doc_or_ref ), self._memo_related_docs )[ 0 ]
