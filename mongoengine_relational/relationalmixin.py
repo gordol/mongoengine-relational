@@ -373,8 +373,14 @@ class RelationManagerMixin( object ):
             # Determine which callback to use. If a callback exists, invoke it.
             method = getattr( self, 'on_change_{}'.format( field_name ), None )
             if callable( method ):
-                new_value, old_value, added_docs, removed_docs = self.get_changes_for_relation( field_name )
-                method( value=new_value, old_value=old_value, request=request, field_name=field_name, added_docs=added_docs, removed_docs=removed_docs )
+                added_docs, removed_docs = self.get_changes_for_relation( field_name )
+
+                if field_name in self._memo_hasone:
+                    new_value = added_docs[ 0 ] if len( added_docs ) else None
+                    old_value = removed_docs[ 0 ] if len( removed_docs ) else None
+                    method( value=new_value, old_value=old_value, request=request, field_name=field_name, added_docs=None, removed_docs=None )
+                elif field_name in self._memo_hasmany:
+                    method( value=None, old_value=None, request=request, field_name=field_name, added_docs=added_docs, removed_docs=removed_docs )
 
         # Sync the memos with the current Document state
         self._memoize_related_fields()
@@ -416,17 +422,21 @@ class RelationManagerMixin( object ):
         '''
         # Make sure we get actual, (dereferenced) document(s)
         new_value = self[ field_name ]
+        added_docs = set()
+        removed_docs = set()
 
         if field_name in self._memo_hasone:
             old_value = self._memo_hasone[ field_name ]
-            return set( new_value ), set( old_value )
+            old_value and removed_docs.add( old_value )
+            new_value and added_docs.add( new_value )
         elif field_name in self._memo_hasmany:
             old_value = self._memo_hasmany[ field_name ]
             added_docs = self._set_difference( new_value, old_value )
             removed_docs = self._set_difference( old_value, new_value )
-            return added_docs, removed_docs
         else:
             raise RelationalError( "Can't find _memo entry for field_name={}".format( field_name ) )
+
+        return added_docs, removed_docs
 
 
     def _set_difference( self, first_set, second_set ):
