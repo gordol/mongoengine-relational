@@ -2,7 +2,7 @@ from __future__ import print_function
 from __future__ import unicode_literals
 
 from mongoengine import GenericReferenceField, ReferenceField, ListField
-
+from mongoengine import ValidationError
 from mongoengine import base
 from bson import DBRef
 
@@ -233,6 +233,10 @@ class RelationManagerMixin( object ):
         if not hasattr( self, '_memo_hasone' ):
             self._memo_hasone = {}
 
+        # Remember old related models, so DbRefs returned by functions like `get_changes_for_relation` can
+        # be substituted for the actual (modified) Documents
+        self._memo_related_docs = set()
+
         for name, field in self._fields.iteritems():
             if isinstance( field, ReferenceField ) or isinstance( field, GenericReferenceField ):
                 self._memo_hasone[ name ] = None
@@ -376,8 +380,8 @@ class RelationManagerMixin( object ):
                 added_docs, removed_docs = self.get_changes_for_relation( field_name )
 
                 if field_name in self._memo_hasone:
-                    new_value = added_docs[ 0 ] if len( added_docs ) else None
-                    old_value = removed_docs[ 0 ] if len( removed_docs ) else None
+                    new_value = added_docs.pop() if len( added_docs ) else None
+                    old_value = removed_docs.pop() if len( removed_docs ) else None
                     method( value=new_value, old_value=old_value, request=request, field_name=field_name, added_docs=None, removed_docs=None )
                 elif field_name in self._memo_hasmany:
                     method( value=None, old_value=None, request=request, field_name=field_name, added_docs=added_docs, removed_docs=removed_docs )
@@ -436,12 +440,27 @@ class RelationManagerMixin( object ):
         else:
             raise RelationalError( "Can't find _memo entry for field_name={}".format( field_name ) )
 
+        # Try to replace any stray DBFRefs with Documents
+        for doc_or_ref in added_docs:
+            if isinstance( doc_or_ref, DBRef ):
+                try:
+                    doc = filter( lambda doc: doc._equals( doc_or_ref ), self._memo_related_docs )[ 0 ]
+                except IndexError as e:
+                    raise ValidationError( 'Cannot find Document for DBRef={}'.format( doc_or_ref ) )
+
+        for doc in removed_docs:
+            if isinstance( doc_or_ref, DBRef ):
+                try:
+                    doc = filter( lambda doc: doc._equals( doc_or_ref ), self._memo_related_docs )[ 0 ]
+                except IndexError as e:
+                    raise ValidationError( 'Cannot find Document for DBRef={}'.format( doc_or_ref ) )
+
         return added_docs, removed_docs
 
 
     def _set_difference( self, first_set, second_set ):
         '''
-        Determine the difference between two sets containing a (possible) mixture of Documents and DbRefs.
+        Determine the difference between two sets containing a (possible) mixture of Documents and DBRefs.
         The `second_set` is subtracted from the `first_set`.
         @param first_set:
         @param second_set:
@@ -464,7 +483,7 @@ class RelationManagerMixin( object ):
     def _equals( self, doc_or_ref1, doc_or_ref2=False ):
         '''
         Determine if two Documents (or DBRefs representing documents) are equal.
-        A DbRef pointing to a Document is considered to be equal to that Document.
+        A DBRef pointing to a Document is considered to be equal to that Document.
         '''
         # `None` is also valid input, so only replace `doc_or_ref2` with self if it's exactly `False`
         if doc_or_ref2 is False:
@@ -492,7 +511,7 @@ class RelationManagerMixin( object ):
             return False
 
         # Iterate over our `hasone` fields.
-        # Since related data can still be DbRefs, access fields by `_data` to avoid getting caught up
+        # Since related data can still be DBRefs, access fields by `_data` to avoid getting caught up
         # in an endless `dereferencing` loop.
         for field_name, previous_doc in self._memo_hasone.iteritems():
             related_doc = self._data[ field_name ]
@@ -529,7 +548,8 @@ class RelationManagerMixin( object ):
                 # TODO: this was changed from `self._data[ field_name ]`; verify this doesn't cause (way) too much queries..
                 related_doc = self[ field_name ]
 
-                if related_doc:
+                if related_doc and isinstance( related_doc, RelationManagerMixin ):
+                    self._memo_related_docs.add( related_doc )
                     related_data = getattr( related_doc, field.related_name )
 
                     if isinstance( related_data, ( list, tuple ) ):
@@ -544,6 +564,7 @@ class RelationManagerMixin( object ):
                 related_doc = new_value
 
                 if related_doc and isinstance( related_doc, RelationManagerMixin ):
+                    self._memo_related_docs.add( related_doc )
                     related_data = getattr( related_doc, field.related_name )
 
                     if isinstance( related_data, ( list, tuple ) ):
@@ -557,6 +578,9 @@ class RelationManagerMixin( object ):
             self._data[ field_name ] = new_value
 
     def add_hasmany( self, field_name, value ):
+        if isinstance( value, RelationManagerMixin ):
+            self._memo_related_docs.add( value )
+
         if field_name in self._memo_hasmany:
             field = self._fields[ field_name ]
 
@@ -566,6 +590,9 @@ class RelationManagerMixin( object ):
 
 
     def remove_hasmany( self, field_name, value ):
+        if isinstance( value, RelationManagerMixin ):
+            self._memo_related_docs.add( value )
+
         if field_name in self._memo_hasmany:
             field = self._fields[ field_name ]
 
