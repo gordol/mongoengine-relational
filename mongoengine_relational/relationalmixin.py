@@ -445,6 +445,8 @@ class RelationManagerMixin( object ):
             if isinstance( doc_or_ref, DBRef ):
                 try:
                     doc = filter( lambda doc: doc._equals( doc_or_ref ), self._memo_related_docs )[ 0 ]
+                    added_docs.remove( doc_or_ref )
+                    added_docs.add( doc )
                 except IndexError as e:
                     raise ValidationError( 'Cannot find Document for DBRef={}'.format( doc_or_ref ) )
 
@@ -452,6 +454,8 @@ class RelationManagerMixin( object ):
             if isinstance( doc_or_ref, DBRef ):
                 try:
                     doc = filter( lambda doc: doc._equals( doc_or_ref ), self._memo_related_docs )[ 0 ]
+                    removed_docs.remove( doc_or_ref )
+                    removed_docs.add( doc )
                 except IndexError as e:
                     raise ValidationError( 'Cannot find Document for DBRef={}'.format( doc_or_ref ) )
 
