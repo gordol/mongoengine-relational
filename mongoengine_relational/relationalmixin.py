@@ -407,9 +407,15 @@ class RelationManagerMixin( object ):
 
     def get_changes_for_relation( self, field_name ):
         '''
-        Get the changeset for a single relation. This returns a tuple with four values:
-        - old_value
+        Get the changeset for a single relation. 
+        This returns a tuple with four values of which 2 will be None depending
+        on the type of relation: 
+
+        for hasOne:
         - new_value
+        - old_value
+
+        For hasMany:
         - added_docs
         - removed_docs
 
@@ -466,7 +472,7 @@ class RelationManagerMixin( object ):
             doc_or_ref2 = self
 
         # If either one is a DBRef, compare the ids (if the other one doesn't have a pk yet, it can't be equal).
-        if isinstance( doc_or_ref1, DBRef ) or isinstance( doc_or_ref2, DBRef ):
+        if (doc_or_ref1 and doc_or_ref2) and (isinstance( doc_or_ref1, DBRef ) or isinstance( doc_or_ref2, DBRef )):
             doc_or_ref1 = doc_or_ref1.id if isinstance( doc_or_ref1, DBRef ) else doc_or_ref1.pk
             doc_or_ref2 = doc_or_ref2.id if isinstance( doc_or_ref2, DBRef ) else doc_or_ref2.pk
 
