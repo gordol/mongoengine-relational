@@ -185,7 +185,7 @@ class RelationsTestCase( unittest.TestCase ):
         d = self.data
         
         # give 'artis' an office
-        office = Office( id='o1' )
+        office = Office( id=get_object_id() )
         d.artis.office = office
 
         # 'office.tenant' has been set to 'artis' right away
@@ -293,3 +293,23 @@ class RelationsTestCase( unittest.TestCase ):
         zoo._data[ 'office' ] = office_doc
 
         self.assertFalse( zoo.get_changed_relations() )
+
+
+    def test_delete( self ):
+        d = self.data
+
+        # Give `artis` an office as well; it should not have 2 animals and an office
+        office = Office( id=get_object_id() )
+        d.artis.office = office
+
+        # relations on other models that should point to `d.artis`
+        self.assertEqual( d.mammoth.zoo, d.artis )
+        self.assertEqual( d.tiger.zoo, d.artis )
+        self.assertEqual( office.tenant, d.artis )
+
+        d.artis._clear_relations()
+
+        # relations on other models that pointed to `d.artis` should be cleared
+        self.assertEqual( d.mammoth.zoo, None )
+        self.assertEqual( d.tiger.zoo, None )
+        self.assertEqual( office.tenant, None )

@@ -299,7 +299,7 @@ class RelationManagerMixin( object ):
         if not is_new:
             self._on_change( request )
 
-        super( RelationManagerMixin, self ).save( safe=safe, force_insert=force_insert, validate=validate,
+        result = super( RelationManagerMixin, self ).save( safe=safe, force_insert=force_insert, validate=validate,
                 write_options=write_options, cascade=cascade, cascade_kwargs=cascade_kwargs, _refs=_refs )
 
         # Update relations after saving if it's a new Document; it should have an id now
@@ -312,6 +312,8 @@ class RelationManagerMixin( object ):
             # Trigger `on_change*` callbacks for changed relations, so we can set new privileges
             self._on_change( request )
 
+        return result
+
 
     def cascade_save(self, *args, **kwargs):
         '''
@@ -323,17 +325,39 @@ class RelationManagerMixin( object ):
             kwargs[ 'cascade_kwargs' ] = { 'request': kwargs.get( 'request' ) }
             del kwargs[ 'request' ]
 
-        super( RelationManagerMixin, self ).cascade_save( *args, **kwargs )
+        return super( RelationManagerMixin, self ).cascade_save( *args, **kwargs )
 
 
     def reload( self, max_depth=1 ):
         '''
         Override `reload`, to perform an `update_relations` after new data has been fetched.
         '''
-        super( RelationManagerMixin, self ).reload( max_depth=max_depth )
+        result = super( RelationManagerMixin, self ).reload( max_depth=max_depth )
 
         # When doing an explicit reload, the relations as fetched from the database should be considered leading.
         self.update_relations( rebuild=True )
+
+        return result
+
+
+    def delete( self, safe=False ):
+        # Before deleting this document, clear relations
+        self._clear_relations()
+
+        return super( RelationManagerMixin, self ).delete( safe=safe )
+
+
+    def _clear_relations( self ):
+        '''
+        Clear relations from this document (both hasOne and hasMany)
+        '''
+        for field_name, previous_related_doc in self._memo_hasone.iteritems():
+            self.update_hasone( field_name, None )
+
+        for field_name, previous_related_docs in self._memo_hasmany.iteritems():
+            current_related_docs = set( self[ field_name ] )
+            for related_doc in current_related_docs:
+                self.remove_hasmany( field_name, related_doc )
 
 
     def _on_change( self, request ):
@@ -454,8 +478,9 @@ class RelationManagerMixin( object ):
 
     def update_relations( self, rebuild=False ):
         '''
-        Updates the 'other side' of our managed related fields.
+        Updates the 'other side' of our managed related fields explicitly.
         '''
+
         # Do not reciprocate relations when we don't have an id yet, as this will cause related documents
         # to fail validation and become unsaveable.
         if not self.pk:
