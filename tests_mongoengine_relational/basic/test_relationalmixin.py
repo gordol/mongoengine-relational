@@ -298,18 +298,23 @@ class RelationsTestCase( unittest.TestCase ):
     def test_delete( self ):
         d = self.data
 
-        # Give `artis` an office as well; it should not have 2 animals and an office
+        # Give `artis` an office as well, and persist it for `changed_relations`; it should not have 2 animals and an office
         office = Office( id=get_object_id() )
         d.artis.office = office
+        d.artis.save( request=self.request )
 
         # relations on other models that should point to `d.artis`
         self.assertEqual( d.mammoth.zoo, d.artis )
         self.assertEqual( d.tiger.zoo, d.artis )
         self.assertEqual( office.tenant, d.artis )
 
-        d.artis._clear_relations()
+        d.artis.clear_relations()
 
         # relations on other models that pointed to `d.artis` should be cleared
         self.assertEqual( d.mammoth.zoo, None )
         self.assertEqual( d.tiger.zoo, None )
         self.assertEqual( office.tenant, None )
+
+        changes = d.artis.get_changed_relations()
+
+        print( changes )

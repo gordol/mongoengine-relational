@@ -342,12 +342,12 @@ class RelationManagerMixin( object ):
 
     def delete( self, safe=False ):
         # Before deleting this document, clear relations
-        self._clear_relations()
+        self.clear_relations()
 
         return super( RelationManagerMixin, self ).delete( safe=safe )
 
 
-    def _clear_relations( self ):
+    def clear_relations( self ):
         '''
         Clear relations from this document (both hasOne and hasMany)
         '''
