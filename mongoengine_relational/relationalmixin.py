@@ -19,11 +19,10 @@ class BaseList( list ):
 
     def __init__(self, list_items, instance, name):
         self._instance = instance
-
+        self._name = name
         if hasattr( self._instance, 'add_hasmany' ) and hasattr( self._instance, 'remove_hasmany' ):
             self._observer = self._instance
 
-        self._name = name
         super( BaseList, self ).__init__( list_items )
 
     def __setitem__(self, key, element ):
@@ -32,21 +31,28 @@ class BaseList( list ):
         try:
             old_element = self.__getitem__( key )
         except KeyError:
-            # catch the error; if there wasn't any (so there was an entry on this key already), the 'else' is executed
             pass
         else:
-            self._observer and self._observer.remove_hasmany( self, key, old_element )
-        finally:
-            self._observer and self._observer.add_hasmany( self._name, element )
-            return super( BaseList, self ).__setitem__( key, element )
+            # Only remove when there was no KeyError
+            if self._observer:
+                self._observer.remove_hasmany( self, key, old_element )
 
+        # Always set the element.
+        if self._observer:
+            self._observer.add_hasmany( self._name, element )
+
+        return super( BaseList, self ).__setitem__( key, element )
 
     def __delitem__( self, index ):
         self._mark_as_changed()
 
         old_element = list.__getitem__( self, index )
         result = super( BaseList, self ).__delitem__( index )
-        self._observer and self._observer.remove_hasmany( self, key, old_element )
+
+        if self._observer:
+            # FIXME: this will fail if it ever gets called. Find out what `key`
+            # should be.
+            self._observer.remove_hasmany( self, key, old_element )
 
         return result
 
@@ -61,7 +67,8 @@ class BaseList( list ):
         self._mark_as_changed()
 
         result = super( BaseList, self ).append( element )
-        self._observer and self._observer.add_hasmany( self._name, element )
+        if self._observer:
+            self._observer.add_hasmany( self._name, element )
 
         return result
 
@@ -70,8 +77,9 @@ class BaseList( list ):
 
         result = super(BaseList, self).extend( iterable )
 
-        for element in iterable:
-            self._observer and self._observer.add_hasmany( self._name, element )
+        if self._observer:
+            for element in iterable:
+                self._observer.add_hasmany( self._name, element )
 
         return result
 
@@ -79,7 +87,8 @@ class BaseList( list ):
         self._mark_as_changed()
 
         result = super( BaseList, self ).insert( index, element )
-        self._observer and self._observer.add_hasmany( self._name, element )
+        if self._observer: 
+            self._observer.add_hasmany( self._name, element )
 
         return result
 
@@ -87,7 +96,10 @@ class BaseList( list ):
         self._mark_as_changed()
 
         result = super(BaseList, self).pop( index )
-        self._observer and self._observer.remove_hasmany( self._name, element )
+        if self._observer: 
+            # FIXME: this will fail if it ever gets called. Find out what `element`
+            # should be
+            self._observer.remove_hasmany( self._name, element )
 
         return result
 
@@ -95,7 +107,8 @@ class BaseList( list ):
         self._mark_as_changed()
 
         result = super(BaseList, self).remove( element )
-        self._observer and self._observer.remove_hasmany( self._name, element )
+        if self._observer:
+            self._observer.remove_hasmany( self._name, element )
 
         return result
 
@@ -120,10 +133,12 @@ class RelationalError( Exception ):
 
 class ReferenceField( ReferenceField ):
     '''
-    Adds a `related_name` argument to MongoEngine's `ReferenceField` for use in managing reverse relations.
+    Adds a `related_name` argument to MongoEngine's `ReferenceField` for use in
+    managing reverse relations.
 
-    The `related_name` should point to a `ListField`, `ReferenceField` or `GenericReferenceField`.
-    The corresponding field may or may not have a `related_name` argument pointing back here.
+    The `related_name` should point to a `ListField`, `ReferenceField` or
+    `GenericReferenceField`.  The corresponding field may or may not have a
+    `related_name` argument pointing back here.  
     '''
     
     def __init__(self, document_type, **kwargs):
@@ -135,10 +150,12 @@ class ReferenceField( ReferenceField ):
 
 class GenericReferenceField( GenericReferenceField ):
     '''
-    Adds a `related_name` argument to MongoEngine's ``GenericReferenceField`` for use in managing reverse relations.
+    Adds a `related_name` argument to MongoEngine's ``GenericReferenceField``
+    for use in managing reverse relations.
 
-    The `related_name`` should point to a `ListField`, `ReferenceField` or `GenericReferenceField`.
-    The corresponding field may or may not have a `related_name` argument pointing back here.
+    The `related_name`` should point to a `ListField`, `ReferenceField` or
+    `GenericReferenceField`.  The corresponding field may or may not have a
+    `related_name` argument pointing back here.
     '''
 
     def __init__(self, **kwargs):
@@ -150,10 +167,12 @@ class GenericReferenceField( GenericReferenceField ):
 
 class ListField( ListField ):
     '''
-    Adds a `related_name` argument to MongoEngine's `ListField` for use in managing reverse relations.
+    Adds a `related_name` argument to MongoEngine's `ListField` for use in
+    managing reverse relations.
 
-    The `related_name` should point to a `ReferenceField`. The corresponding `ReferenceField`
-    may or may not have a `related_name` argument pointing back here.
+    The `related_name` should point to a `ReferenceField`. The corresponding
+    `ReferenceField` may or may not have a `related_name` argument pointing
+    back here.  
     '''
 
     def __init__(self, field=None, **kwargs):
@@ -167,31 +186,34 @@ class RelationManagerMixin( object ):
     """ 
     Manages the 'other side' of relations upon changing (saving) a
     :class:`~mongoengine.Document`'s fields that define :attr:`related_name`.
-    
+
     .. Example:
-        class Book( Document ):
-            author = ReferenceField( 'Person', related_name='books', required=True )
+        class Organization( Document ):
+            owner = ReferenceField( 'Person', related_name='organizations', required=True )
             
-        class Author( Document ):
-            books = ListField( ReferenceField( 'Book' ), related_name='author' )
+        class Person( Document ):
+            organizations = ListField( ReferenceField( 'Organization' ), related_name='owner' )
 
-    Will update an author's `books` field when a book's author changes:
-        * remove the book from any previous author's `books` field
-        * add the book to any new author's `books` field
+    Updates an owner's `organizations` field when an organization's owner changes:
+        * remove the organization from any previous owner's `organizations` field
+        * add the organization to any new owner's `organizations` field
 
-    Will update all corresponding book's `author` fields when the `books` field 
-    of an author changes:
-        * for every added book, ensure its `author` points back to us.
-          If it doesn't: remove the book from any previous author's `books`
-        * for every removed book, nullify its `author` if `required` is False,
-          or don't remove the book from this author's `books` if an `author`
-          is required.
+    Will update all corresponding organization's `owner` fields when the
+    `organizations` field of an owner changes:
+
+        * for every added organization, ensure its `owner` points back to us.
+          If it doesn't: remove the organization from any previous owner's
+          `organizations`
+
+        * for every removed organization, nullify its `owner` if `required` is
+          False, or don't remove the organization from this owner's
+          `organizations` if an `owner` is required.
 
     Raises `RelationalError` if both ends of the relation are not of the
     right type or not pointing to each other.
 
-    Of course this doesn't guarantee any hard consistency due to possible bugs in
-    application code or exceptions down the line. 
+    Of course this doesn't guarantee any hard consistency due to possible bugs
+    in application code or exceptions down the line. 
     
     We're pondering about `rebuild` functionality that can repair, or at least
     report, any differences between our managed fields.
@@ -201,7 +223,6 @@ class RelationManagerMixin( object ):
         super( RelationManagerMixin, self ).__init__( *args, **kwargs )
 
         self._initialised = False
-
         self._init_memo()
 
         if self.pk:
@@ -213,7 +234,6 @@ class RelationManagerMixin( object ):
 
         self._initialised = True
 
-
     def __setattr__( self, name, value ):
         '''
         Overridden to track changes on simple `ReferenceField`s.
@@ -222,7 +242,6 @@ class RelationManagerMixin( object ):
             self.update_hasone( name, value )
 
         super( RelationManagerMixin, self ).__setattr__( name, value )
-
 
     def _init_memo( self ):
         '''
@@ -233,8 +252,9 @@ class RelationManagerMixin( object ):
         if not hasattr( self, '_memo_hasone' ):
             self._memo_hasone = {}
 
-        # Remember old related models, so DbRefs returned by functions like `get_changes_for_relation` can
-        # be substituted for the actual (modified) Documents
+        # Remember previously related models, so DbRefs returned by functions
+        # like `get_changes_for_relation` can  be substituted for the actual
+        # (modified) Documents
         self._memo_related_docs = set()
 
         for name, field in self._fields.iteritems():
@@ -242,10 +262,10 @@ class RelationManagerMixin( object ):
                 self._memo_hasone[ name ] = None
                 related_doc_type = getattr( field, 'document_type', None )
             elif isinstance( field, ListField ):
-                # If the ListField contains references, memoize it
+                # Only memoize the ListField if it contains ReferenceFields.
                 if isinstance( field.field, ReferenceField ) or isinstance( field.field, GenericReferenceField ):
                     self._memo_hasmany[ name ] = set()
-                    related_doc_type = field.field.document_type
+                    related_doc_type = getattr( field.field, 'document_type', None )
                 else:
                     related_doc_type = None
             else:
@@ -253,8 +273,10 @@ class RelationManagerMixin( object ):
 
             # If 'field' is relational and has a 'related_name', check whether the field
             # we refer to exists on the other document and points back to this Document.
-            # This only works on normal `ReferenceField`s; `GenericReferenceField`s go unchecked,
-            # since any type of document could potentially end up in one.
+            # Raise an informative Exception if it doesn't exist or point back.
+            # NOTE: This only works on normal `ReferenceField`s; 
+            # `GenericReferenceField`s go unchecked since any type of document 
+            # could potentially end up in one.
             if related_doc_type and hasattr( field, 'related_name' ):
                 if field.related_name not in related_doc_type._fields:
                     raise RelationalError("You should add a field `{}` with `related_name='{}'` to the `{}` Document.".format(field.related_name, name, related_doc_type._class_name ) )
@@ -266,7 +288,6 @@ class RelationManagerMixin( object ):
                     raise RelationalError( "The field `{}` of `{}` has `related_name='{}'`; should this be `related_name='{}'`?".format( related_field.name, related_doc_type._class_name, related_field.related_name, name ) )
 
                     #print( '  %s <-> %s.%s' % ( name, related_doc_type._class_name, related_field.name ) )
-
 
     def _memoize_related_fields( self ):
         '''
@@ -318,19 +339,16 @@ class RelationManagerMixin( object ):
 
         return result
 
-
     def cascade_save(self, *args, **kwargs):
         '''
-        Overridden to pull a dirty trick; when cascading saves, `Document.save` merges `cascade_kwargs`
-        into the **kwargs passed to this function. So by artificially creating a new `cascade_kwargs` with `request`,
-        we can make sure `request` will propagate down.
+        Overridden to propagate `request` for cascade saves.
         '''
         if ( kwargs[ 'request' ] ):
-            kwargs[ 'cascade_kwargs' ] = { 'request': kwargs.get( 'request' ) }
+            kwargs['cascade_kwargs'] = kwargs['cascade_kwargs'] or {} 
+            kwargs['cascade_kwargs'].update( { 'request': kwargs.get( 'request' ) } )
             del kwargs[ 'request' ]
 
         return super( RelationManagerMixin, self ).cascade_save( *args, **kwargs )
-
 
     def reload( self, max_depth=1 ):
         '''
@@ -343,13 +361,11 @@ class RelationManagerMixin( object ):
 
         return result
 
-
     def delete( self, safe=False ):
         # Before deleting this document, clear relations
         self.clear_relations()
 
         return super( RelationManagerMixin, self ).delete( safe=safe )
-
 
     def clear_relations( self ):
         '''
@@ -358,11 +374,11 @@ class RelationManagerMixin( object ):
         for field_name, previous_related_doc in self._memo_hasone.iteritems():
             self.update_hasone( field_name, None )
 
+        # FIXME: Does this actually work? Why the self[ field_name ]?
         for field_name, previous_related_docs in self._memo_hasmany.iteritems():
             current_related_docs = set( self[ field_name ] )
             for related_doc in current_related_docs:
                 self.remove_hasmany( field_name, related_doc )
-
 
     def _on_change( self, request ):
         '''
@@ -382,30 +398,34 @@ class RelationManagerMixin( object ):
                 if field_name in self._memo_hasone:
                     new_value = added_docs.pop() if len( added_docs ) else None
                     old_value = removed_docs.pop() if len( removed_docs ) else None
-                    method( value=new_value, old_value=old_value, request=request, field_name=field_name, added_docs=None, removed_docs=None )
+                    method( value=new_value, old_value=old_value, request=request, field_name=field_name, 
+                            added_docs=None, removed_docs=None )
                 elif field_name in self._memo_hasmany:
-                    method( value=None, old_value=None, request=request, field_name=field_name, added_docs=added_docs, removed_docs=removed_docs )
+                    method( value=None, old_value=None, request=request, field_name=field_name, 
+                            added_docs=added_docs, removed_docs=removed_docs )
 
         # Sync the memos with the current Document state
         self._memoize_related_fields()
 
-
-    def get_changed_relations( self ):
-        '''
-        Get a set listing the names of fields on this document that have been modified since the last call to
-        `_memoize_related_fields` (which is called from `_on_change`, which is called from `save`).
-        '''
+    def get_changed_relations( self ): 
+        ''' 
+        Get a set listing the names of fields on this document that have been
+        modified since the last call to `_memoize_related_fields` (which is
+        called from `_on_change`, which is called from `save`).  
+        ''' 
         changed_fields = set()
 
-        # for hasone, simply compare the values
+        # For hasone, simply compare the values.
         for field_name, previous_related_doc in self._memo_hasone.iteritems():
             related_doc = self._data[ field_name ]
 
             if self._nequals( related_doc, previous_related_doc ):
                 changed_fields.add( field_name )
 
-        # for hasmany, check if different values exists in the old set compared to the new set (using symmetric_difference)
+        # For hasmany, check if different values exist in the old set compared
+        # to the new set (using symmetric_difference).
         for field_name, previous_related_docs in self._memo_hasmany.iteritems():
+            # FIXME: shouldn't this then also be self[ field_name ]?
             current_related_docs = set( self._data[ field_name ] )
 
             if len( self._set_difference( previous_related_docs, current_related_docs ) ) > 0 or \
@@ -413,7 +433,6 @@ class RelationManagerMixin( object ):
                 changed_fields.add( field_name )
 
         return changed_fields
-
 
     def get_changes_for_relation( self, field_name ):
         '''
@@ -425,18 +444,23 @@ class RelationManagerMixin( object ):
         @rtype: tuple
         '''
         # Make sure we get actual, (dereferenced) document(s)
+        # FIXME: Does this self[ field_name ] business actually work? 
         new_value = self[ field_name ]
         added_docs = set()
         removed_docs = set()
 
         if field_name in self._memo_hasone:
             old_value = self._memo_hasone[ field_name ]
-            old_value and removed_docs.add( old_value )
-            new_value and added_docs.add( new_value )
+            if old_value:
+                removed_docs.add( old_value )
+            if new_value:
+                added_docs.add( new_value )
+
         elif field_name in self._memo_hasmany:
             old_value = self._memo_hasmany[ field_name ]
             added_docs = self._set_difference( new_value, old_value )
             removed_docs = self._set_difference( old_value, new_value )
+
         else:
             raise RelationalError( "Can't find _memo entry for field_name={}".format( field_name ) )
 
@@ -461,7 +485,6 @@ class RelationManagerMixin( object ):
 
         return added_docs, removed_docs
 
-
     def _set_difference( self, first_set, second_set ):
         '''
         Determine the difference between two sets containing a (possible) mixture of Documents and DBRefs.
@@ -483,7 +506,6 @@ class RelationManagerMixin( object ):
 
         return diff
 
-
     def _equals( self, doc_or_ref1, doc_or_ref2=False ):
         '''
         Determine if two Documents (or DBRefs representing documents) are equal.
@@ -503,20 +525,20 @@ class RelationManagerMixin( object ):
     def _nequals( self, doc_or_ref1, doc_or_ref2=None ):
         return not self._equals( doc_or_ref1, doc_or_ref2 )
 
-
     def update_relations( self, rebuild=False ):
         '''
         Updates the 'other side' of our managed related fields explicitly.
         '''
 
-        # Do not reciprocate relations when we don't have an id yet, as this will cause related documents
-        # to fail validation and become unsaveable.
+        # Do not reciprocate relations when we don't have an id yet, as this
+        # will cause related documents to fail validation and become
+        # unsaveable.
         if not self.pk:
             return False
 
-        # Iterate over our `hasone` fields.
-        # Since related data can still be DBRefs, access fields by `_data` to avoid getting caught up
-        # in an endless `dereferencing` loop.
+        # Iterate over our `hasone` fields. Since related data can still be
+        # DBRefs, access fields by `_data` to avoid getting caught up in an
+        # endless `dereferencing` loop.
         for field_name, previous_doc in self._memo_hasone.iteritems():
             related_doc = self._data[ field_name ]
             if isinstance( related_doc, RelationManagerMixin ):
@@ -542,14 +564,14 @@ class RelationManagerMixin( object ):
 
         return True
 
-
     def update_hasone( self, field_name, new_value ):
         if field_name in self._memo_hasone:
             field = self._fields[ field_name ]
 
             if hasattr( field, 'related_name' ):
                 # Remove old value
-                # TODO: this was changed from `self._data[ field_name ]`; verify this doesn't cause (way) too much queries..
+                # TODO: this was changed from `self._data[ field_name ]`; 
+                # verify this doesn't cause (way) too much queries..
                 related_doc = self[ field_name ]
 
                 if related_doc and isinstance( related_doc, RelationManagerMixin ):
@@ -591,7 +613,6 @@ class RelationManagerMixin( object ):
             if hasattr( field, 'related_name' ):
                 # the other side of the relation is always a 'hasone'
                 value.update_hasone( field.related_name, self )
-
 
     def remove_hasmany( self, field_name, value ):
         if isinstance( value, RelationManagerMixin ):
