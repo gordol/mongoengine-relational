@@ -303,11 +303,10 @@ class RelationManagerMixin( object ):
             # Remember a set of references
             self._memo_hasmany[ field_name ] = set( self._data[ field_name ] )
 
-
-    def save( self, safe=True, force_insert=False, validate=True, write_options=None, cascade=None, cascade_kwargs=None,
-              _refs=None, request=None ):
-        '''
-        Override `save`. If a document is being saved for the first time, it will be given an id (if the save was successful).
+    def save( self, safe=True, force_insert=False, validate=True, write_options=None, cascade=None, cascade_kwargs=None, _refs=None, request=None ):
+        ''' 
+        Override `save`. If a document is being saved for the first time,
+        it will be given an id (if the save was successful).  
         '''
         request = request or ( cascade_kwargs and cascade_kwargs[ 'request' ] ) or None
 
@@ -344,8 +343,11 @@ class RelationManagerMixin( object ):
         Overridden to propagate `request` for cascade saves.
         '''
         if ( kwargs[ 'request' ] ):
-            kwargs['cascade_kwargs'] = kwargs['cascade_kwargs'] or {} 
-            kwargs['cascade_kwargs'].update( { 'request': kwargs.get( 'request' ) } )
+            if 'cascade_kwargs' in kwargs:
+                kwargs[ 'cascade_kwargs' ].update( { 'request': kwargs.get( 'request' ) } )
+            else:
+                kwargs['cascade_kwargs'] = { 'request': kwargs.get( 'request' ) } 
+
             del kwargs[ 'request' ]
 
         return super( RelationManagerMixin, self ).cascade_save( *args, **kwargs )
