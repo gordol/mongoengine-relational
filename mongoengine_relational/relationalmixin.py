@@ -24,6 +24,7 @@ class BaseList( list ):
 
         super( BaseList, self ).__init__( list_items )
 
+
     def __setitem__(self, key, element ):
         self._mark_as_changed()
 
@@ -34,7 +35,7 @@ class BaseList( list ):
         else:
             # Only remove when there was no KeyError
             if self._observer:
-                self._observer.remove_hasmany( self, key, old_element )
+                self._observer.remove_hasmany( self._name, key, old_element )
 
         # Always set the element.
         if self._observer:
@@ -224,19 +225,25 @@ class RelationManagerMixin( object ):
             # If initial relations were set, add these to related models
             self.update_relations()
 
+        self._initialised = True
+
+        if self.pk:
             # Sync the memos with the current Document state
             self._memoize_related_fields()
 
-        self._initialised = True
 
     def __setattr__( self, name, value ):
         '''
         Overridden to track changes on simple `ReferenceField`s.
         '''
         if self._initialised and name[ 0 ] != '_':
-            self.update_hasone( name, value )
+            if name in self._memo_hasone:
+                self.update_hasone( name, value )
+            elif name in self._memo_hasmany:
+                self.update_hasmany( name, value, self._memo_hasmany[ name ] )
 
         super( RelationManagerMixin, self ).__setattr__( name, value )
+
 
     def _init_memo( self ):
         '''
@@ -283,6 +290,7 @@ class RelationManagerMixin( object ):
                     raise RelationalError( "The field `{}` of `{}` has `related_name='{}'`; should this be `related_name='{}'`?".format( related_field.name, related_doc_type._class_name, related_field.related_name, name ) )
 
                     #print( '  %s <-> %s.%s' % ( name, related_doc_type._class_name, related_field.name ) )
+
 
     def _memoize_related_fields( self ):
         '''
@@ -341,6 +349,7 @@ class RelationManagerMixin( object ):
 
         return result
 
+
     def cascade_save(self, *args, **kwargs):
         '''
         Overridden to propagate `request` for cascade saves.
@@ -355,6 +364,7 @@ class RelationManagerMixin( object ):
 
         return super( RelationManagerMixin, self ).cascade_save( *args, **kwargs )
 
+
     def reload( self, max_depth=1 ):
         '''
         Override `reload`, to perform an `update_relations` after new data has been fetched.
@@ -366,11 +376,13 @@ class RelationManagerMixin( object ):
 
         return result
 
+
     def delete( self, safe=False ):
         # Before deleting this document, clear relations
         self.clear_relations()
 
         return super( RelationManagerMixin, self ).delete( safe=safe )
+
 
     def clear_relations( self ):
         '''
@@ -383,6 +395,7 @@ class RelationManagerMixin( object ):
             current_related_docs = set( self[ field_name ] )
             for related_doc in current_related_docs:
                 self.remove_hasmany( field_name, related_doc )
+
 
     def _on_change( self, request ):
         '''
@@ -411,6 +424,7 @@ class RelationManagerMixin( object ):
         # Sync the memos with the current Document state
         self._memoize_related_fields()
 
+
     def get_changed_relations( self ): 
         ''' 
         Get a set listing the names of fields on this document that have been
@@ -436,6 +450,7 @@ class RelationManagerMixin( object ):
                 changed_fields.add( field_name )
 
         return changed_fields
+
 
     def get_changes_for_relation( self, field_name ):
         '''
@@ -533,7 +548,8 @@ class RelationManagerMixin( object ):
 
     def update_relations( self, rebuild=False ):
         '''
-        Updates the 'other side' of our managed related fields explicitly.
+        Updates the 'other side' of our managed related fields explicitly, based on the difference between
+        the related document(s) stored in the `_memo`s and the current situation.
         '''
 
         # Do not reciprocate relations when we don't have an id yet, as this
@@ -545,41 +561,35 @@ class RelationManagerMixin( object ):
         # Iterate over our `hasone` fields. Since related data can still be
         # DBRefs, access fields by `_data` to avoid getting caught up in an
         # endless `dereferencing` loop.
-        for field_name, previous_doc in self._memo_hasone.iteritems():
+        for field_name in self._memo_hasone.keys():
             related_doc = self._data[ field_name ]
             if isinstance( related_doc, RelationManagerMixin ):
                 self.update_hasone( field_name, related_doc )
 
         # Iterate over our `hasmany` fields
-        for field_name, previous_related_docs in self._memo_hasmany.iteritems():
-            field = self._fields[ field_name ]
-
-            # Only process fields that have a related_name set.
-            if hasattr( field, 'related_name' ):
-                current_related_docs = set( self._data[ field_name ] )
-                added_docs = self._set_difference( current_related_docs, previous_related_docs )
-                removed_docs = self._set_difference( previous_related_docs, current_related_docs )
-
-                for related_doc in added_docs:
-                    if isinstance( related_doc, RelationManagerMixin ):
-                        related_doc.update_hasone( field.related_name, self )
-
-                for related_doc in removed_docs:
-                    if isinstance( related_doc, RelationManagerMixin ):
-                        related_doc.update_hasone( field.related_name, None )
+        for field_name in self._memo_hasmany:
+            self.update_hasmany( field_name, self._data[ field_name ] )
 
         return True
 
 
     def update_hasone( self, field_name, new_value ):
+        '''
+        Update a `hasOne` relation, both on the side of this document, and the opposite related document.
+
+        @param field_name:
+        @param new_value:
+        @return:
+        '''
         if field_name in self._memo_hasone:
             field = self._fields[ field_name ]
 
             if hasattr( field, 'related_name' ):
                 # Remove old value
-                # TODO: this was changed from `self._data[ field_name ]`;
+                # Remove old value
+                # TODO: this was changed from `self._data[ field_name ]` to self[ field_name ];
                 # verify this doesn't cause (way) too much queries..
-                related_doc = self[ field_name ]
+                related_doc = self._data[ field_name ]
 
                 if related_doc and isinstance( related_doc, RelationManagerMixin ):
                     self._memo_related_docs.add( related_doc )
@@ -609,6 +619,35 @@ class RelationManagerMixin( object ):
                         print( 'Set `%s` of `%s` to `%s`' % ( field.related_name, related_doc, self ) )
 
             self._data[ field_name ] = new_value
+
+
+    def update_hasmany( self, field_name, current_related_docs, previous_related_docs=None ):
+        if field_name in self._memo_hasmany:
+            field = self._fields[ field_name ]
+
+            # Only process fields that have a related_name set.
+            if hasattr( field, 'related_name' ):
+                if previous_related_docs is None:
+                    previous_related_docs = set( self._memo_hasmany[ field_name ] )
+                else:
+                    previous_related_docs = set( previous_related_docs )
+
+                current_related_docs = set( current_related_docs )
+
+                for value in current_related_docs:
+                    if isinstance( value, Document ):
+                        self._memo_related_docs.add( value )
+
+                added_docs = self._set_difference( current_related_docs, previous_related_docs )
+                removed_docs = self._set_difference( previous_related_docs, current_related_docs )
+
+                for related_doc in added_docs:
+                    if isinstance( related_doc, RelationManagerMixin ):
+                        related_doc.update_hasone( field.related_name, self )
+
+                for related_doc in removed_docs:
+                    if isinstance( related_doc, RelationManagerMixin ):
+                        related_doc.update_hasone( field.related_name, None )
 
 
     def add_hasmany( self, field_name, value ):
