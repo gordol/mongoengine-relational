@@ -50,9 +50,7 @@ class BaseList( list ):
         result = super( BaseList, self ).__delitem__( index )
 
         if self._observer:
-            # FIXME: this will fail if it ever gets called. Find out what `key`
-            # should be.
-            self._observer.remove_hasmany( self, key, old_element )
+            self._observer.remove_hasmany( self._name, old_element )
 
         return result
 
@@ -95,11 +93,9 @@ class BaseList( list ):
     def pop(self, index=None ):
         self._mark_as_changed()
 
-        result = super(BaseList, self).pop( index )
-        if self._observer: 
-            # FIXME: this will fail if it ever gets called. Find out what `element`
-            # should be
-            self._observer.remove_hasmany( self._name, element )
+        result = super(BaseList, self).pop( index ) if index else super(BaseList, self).pop()
+        if self._observer:
+            self._observer.remove_hasmany( self._name, result )
 
         return result
 
@@ -376,7 +372,6 @@ class RelationManagerMixin( object ):
         for field_name, previous_related_doc in self._memo_hasone.iteritems():
             self.update_hasone( field_name, None )
 
-        # FIXME: Does this actually work? Why the self[ field_name ]?
         for field_name, previous_related_docs in self._memo_hasmany.iteritems():
             current_related_docs = set( self[ field_name ] )
             for related_doc in current_related_docs:
@@ -427,7 +422,6 @@ class RelationManagerMixin( object ):
         # For hasmany, check if different values exist in the old set compared
         # to the new set (using symmetric_difference).
         for field_name, previous_related_docs in self._memo_hasmany.iteritems():
-            # FIXME: shouldn't this then also be self[ field_name ]?
             current_related_docs = set( self._data[ field_name ] )
 
             if len( self._set_difference( previous_related_docs, current_related_docs ) ) > 0 or \
@@ -446,7 +440,6 @@ class RelationManagerMixin( object ):
         @rtype: tuple
         '''
         # Make sure we get actual, (dereferenced) document(s)
-        # FIXME: Does this self[ field_name ] business actually work? 
         new_value = self[ field_name ]
         added_docs = set()
         removed_docs = set()

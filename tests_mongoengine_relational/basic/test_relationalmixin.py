@@ -93,6 +93,28 @@ class RelationsTestCase( unittest.TestCase ):
         book.author = User( name='B' )
 
 
+    def test_baselist( self ):
+        d = self.data
+
+        # test BaseList del/pop
+        del d.artis.animals[ 0 ]
+        d.artis.animals.pop()
+
+        self.assertEqual( d.mammoth.zoo, None )
+        self.assertEqual( d.tiger.zoo, None )
+
+        # test append / extend
+        d.artis.animals.append( d.mammoth )
+        d.artis.animals.extend( [ d.tiger ] )
+
+        self.assertEqual( d.mammoth.zoo, d.artis )
+        self.assertEqual( d.tiger.zoo, d.artis )
+
+        # test remove/insert
+        d.artis.animals.remove( d.tiger )
+        d.artis.animals.insert( 0, d.tiger )
+
+
     def test_relation_initialization( self ):
         d = self.data
 
@@ -318,3 +340,4 @@ class RelationsTestCase( unittest.TestCase ):
         changes = d.artis.get_changed_relations()
 
         print( changes )
+
