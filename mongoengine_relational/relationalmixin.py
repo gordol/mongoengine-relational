@@ -232,17 +232,17 @@ class RelationManagerMixin( object ):
             self._memoize_related_fields()
 
 
-    def __setattr__( self, name, value ):
+    def __setattr__( self, key, value ):
         '''
         Overridden to track changes on simple `ReferenceField`s.
         '''
-        if self._initialised and name[ 0 ] != '_':
-            if name in self._memo_hasone:
-                self.update_hasone( name, value )
-            elif name in self._memo_hasmany:
-                self.update_hasmany( name, value, self._data[ name ] )
+        if self._initialised and key[ 0 ] != '_':
+            if key in self._memo_hasone:
+                self.update_hasone( key, value )
+            elif key in self._memo_hasmany:
+                self.update_hasmany( key, value, self[ key ] )
 
-        super( RelationManagerMixin, self ).__setattr__( name, value )
+        return super( RelationManagerMixin, self ).__setattr__( key, value )
 
 
     def _init_memo( self ):
@@ -294,7 +294,7 @@ class RelationManagerMixin( object ):
 
     def _memoize_related_fields( self ):
         '''
-        Creates a copy of the items in our managed fields so we can compare any changes.
+        Creates a copy of the items in our managed fields so we can compare changes.
         '''
         if not self.pk:
             return False
@@ -302,15 +302,22 @@ class RelationManagerMixin( object ):
         for field_name in self._memo_hasone.keys():
             # Remember a single reference
             related_doc = self._data[ field_name ]
+            self._memoize_documents( related_doc )
             self._memo_hasone[ field_name ] = related_doc
-            if isinstance( related_doc, Document ):
-                self._memo_related_docs.add( related_doc )
+
         for field_name in self._memo_hasmany.keys():
             # Remember a set of references
             related_docs = set( self._data[ field_name ] )
+            self._memoize_documents( related_docs )
             self._memo_hasmany[ field_name ] = related_docs
 
-            related_docs = { doc for doc in related_docs if isinstance( doc, Document ) }
+
+    def _memoize_documents( self, value ):
+        if isinstance( value, Document ):
+            value = [ value ]
+
+        if isinstance( value, ( list, set, tuple ) ):
+            related_docs = { doc for doc in value if isinstance( doc, Document ) }
             self._memo_related_docs.update( related_docs )
 
 
@@ -586,13 +593,12 @@ class RelationManagerMixin( object ):
 
             if hasattr( field, 'related_name' ):
                 # Remove old value
-                # Remove old value
                 # TODO: this was changed from `self._data[ field_name ]` to self[ field_name ];
                 # verify this doesn't cause (way) too much queries..
-                related_doc = self._data[ field_name ]
+                related_doc = self[ field_name ]
 
                 if related_doc and isinstance( related_doc, RelationManagerMixin ):
-                    self._memo_related_docs.add( related_doc )
+                    self._memoize_documents( related_doc )
                     related_data = getattr( related_doc, field.related_name )
 
                     if isinstance( related_data, ( list, tuple ) ):
@@ -607,7 +613,7 @@ class RelationManagerMixin( object ):
                 related_doc = new_value
 
                 if related_doc and isinstance( related_doc, RelationManagerMixin ):
-                    self._memo_related_docs.add( related_doc )
+                    self._memoize_documents( related_doc )
                     related_data = getattr( related_doc, field.related_name )
 
                     if isinstance( related_data, ( list, tuple ) ):
@@ -634,9 +640,8 @@ class RelationManagerMixin( object ):
 
                 current_related_docs = set( current_related_docs )
 
-                for value in current_related_docs:
-                    if isinstance( value, Document ):
-                        self._memo_related_docs.add( value )
+                self._memoize_documents( previous_related_docs )
+                self._memoize_documents( current_related_docs )
 
                 added_docs = self._set_difference( current_related_docs, previous_related_docs )
                 removed_docs = self._set_difference( previous_related_docs, current_related_docs )
@@ -651,8 +656,7 @@ class RelationManagerMixin( object ):
 
 
     def add_hasmany( self, field_name, value ):
-        if isinstance( value, Document ):
-            self._memo_related_docs.add( value )
+        self._memoize_documents( value )
 
         if field_name in self._memo_hasmany:
             field = self._fields[ field_name ]
@@ -663,8 +667,7 @@ class RelationManagerMixin( object ):
 
 
     def remove_hasmany( self, field_name, value ):
-        if isinstance( value, Document ):
-            self._memo_related_docs.add( value )
+        self._memoize_documents( value )
 
         if field_name in self._memo_hasmany:
             field = self._fields[ field_name ]
