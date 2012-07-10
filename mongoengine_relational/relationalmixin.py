@@ -3,6 +3,7 @@ from __future__ import unicode_literals
 
 from mongoengine import Document, GenericReferenceField, ReferenceField, ListField, ValidationError
 from mongoengine import base
+from mongoengine.queryset import CASCADE, DO_NOTHING, NULLIFY, DENY, PULL
 from bson import DBRef
 
 
@@ -508,6 +509,78 @@ class RelationManagerMixin( object ):
                     raise ValidationError( 'Cannot find Document for DBRef={}'.format( doc_or_ref ) )
 
         return added_docs, removed_docs
+
+
+    def get_related_documents_to_update( self ):
+        '''
+        Determines which related documents should be saved or deleted
+        due to changes in their relations to us.
+        '''
+
+        to_save = set()
+        to_delete = set()
+        added_relations = {}
+        removed_relations = {}
+
+        changed_relations = self.get_changed_relations()
+        for c in changed_relations:
+            # Now find out the changes
+            added_relations[c], removed_relations[c] = self.get_changes_for_relation(c)
+
+        # Added documents have a new relation to us so should be saved anyway.
+        for added_set in added_relations.values():
+            for doc in added_set:
+                to_save.add( doc )
+
+        # What should happen to removed relations depends on their 
+        # `reverse_delete_rule`, which in MongoEngine is one of:
+        #
+        #  * DO_NOTHING  - don't do anything (default).
+        #  * NULLIFY     - Updates the reference to null.
+        #  * CASCADE     - Deletes the documents associated with the reference.
+        #  * DENY        - Prevent the deletion of the reference object.
+        #  * PULL        - Pull the reference from a :class:`~mongoengine.ListField` of references
+        #
+        # For us this means:
+        #  - NULLIFY'd and PULL'ed relations are added to `to_save`
+        #  - CASCADE'd relations are added to `to_delete` (so the API can decide)
+        #  - DENY'd relations raise a ValidationError (which they probably shouldn't)
+        #  - DO_NOTHING's pass for now
+        # FIXME: give DO_NOTHING (the default) some meaning!
+        for relation, removed_set in removed_relations.items():
+
+            # FIXME Don't do this on run time! Set it on class instantiation.
+            fld = self._fields[ relation ]
+            related_name = getattr( fld, 'related_name', None )
+            if not related_name:
+                # This field is not managed by us
+                continue
+
+            if isinstance( fld, ListField ):
+                fld = fld.field
+            related_fld = getattr( fld.document_type, related_name, None )
+
+            if not related_fld:
+                # This field is not managed by us.
+                continue 
+
+            if isinstance(related_fld, ListField ):
+                rule = related_fld.field.reverse_delete_rule
+            else:
+                rule = related_fld.reverse_delete_rule
+
+            for doc in removed_set:
+                if rule == DO_NOTHING:
+                    raise ValidationError( "Field `{0}` on document `{1}` needs a reverse delete rule for consistency.".format(self._fields[ relation ].related_name, doc._class_name ))
+                if rule == DENY:
+                    raise ValidationError( "Field `{0}` on document `{1}` DENYs removal of `{2}`.".format(self._fields[relation].related_name, doc._class_name, self ))
+                if rule == CASCADE:
+                    to_delete.add(doc)
+                if rule in (NULLIFY, PULL):
+                    to_save.add(doc)
+
+        # What happens to removed relations depends on their reverse_delete_rule.
+        return to_save, to_delete
 
 
     def _set_difference( self, first_set, second_set ):
