@@ -240,7 +240,7 @@ class RelationManagerMixin( object ):
             if name in self._memo_hasone:
                 self.update_hasone( name, value )
             elif name in self._memo_hasmany:
-                self.update_hasmany( name, value, self._memo_hasmany[ name ] )
+                self.update_hasmany( name, value, self._data[ name ] )
 
         super( RelationManagerMixin, self ).__setattr__( name, value )
 
@@ -641,13 +641,13 @@ class RelationManagerMixin( object ):
                 added_docs = self._set_difference( current_related_docs, previous_related_docs )
                 removed_docs = self._set_difference( previous_related_docs, current_related_docs )
 
-                for related_doc in added_docs:
-                    if isinstance( related_doc, RelationManagerMixin ):
-                        related_doc.update_hasone( field.related_name, self )
-
                 for related_doc in removed_docs:
                     if isinstance( related_doc, RelationManagerMixin ):
                         related_doc.update_hasone( field.related_name, None )
+
+                for related_doc in added_docs:
+                    if isinstance( related_doc, RelationManagerMixin ):
+                        related_doc.update_hasone( field.related_name, self )
 
 
     def add_hasmany( self, field_name, value ):
