@@ -313,13 +313,18 @@ class RelationManagerMixin( object ):
             self._memo_hasmany[ field_name ] = related_docs
 
 
-    def _memoize_documents( self, value ):
-        if isinstance( value, Document ):
-            value = [ value ]
+    def _memoize_documents( self, docs ):
+        '''
 
-        if isinstance( value, ( list, set, tuple ) ):
-            related_docs = { doc for doc in value if isinstance( doc, Document ) }
-            self._memo_related_docs.update( related_docs )
+        @param value:
+        @return:
+        '''
+        if isinstance( docs, Document ):
+            docs = [ docs ]
+
+        if isinstance( docs, ( list, set, tuple ) ):
+            documents = { doc for doc in docs if isinstance( doc, Document ) }
+            self._memo_related_docs.update( documents )
 
 
     def save( self, safe=True, force_insert=False, validate=True, write_options=None, cascade=None, cascade_kwargs=None, _refs=None, request=None ):
@@ -462,7 +467,7 @@ class RelationManagerMixin( object ):
 
     def get_changes_for_relation( self, field_name ):
         '''
-        Get the changeset for a single relation.
+        Get the changeset (added and removed Documents)for a single relation.
 
         @param field_name:
         @return: a tuple containing two values. The first contains a set of added/new Documents;
@@ -516,23 +521,17 @@ class RelationManagerMixin( object ):
         Determines which related documents should be saved or deleted
         due to changes in their relations to us.
         '''
-
         to_save = set()
         to_delete = set()
-        added_relations = {}
         removed_relations = {}
 
         changed_relations = self.get_changed_relations()
-        for c in changed_relations:
+        for rel in changed_relations:
             # Now find out the changes
-            added_relations[c], removed_relations[c] = self.get_changes_for_relation(c)
+            added_relations, removed_relations[ rel ] = self.get_changes_for_relation( rel )
+            to_save.update( added_relations )
 
-        # Added documents have a new relation to us so should be saved anyway.
-        for added_set in added_relations.values():
-            for doc in added_set:
-                to_save.add( doc )
-
-        # What should happen to removed relations depends on their 
+        # What should happen to removed relations depends on their
         # `reverse_delete_rule`, which in MongoEngine is one of:
         #
         #  * DO_NOTHING  - don't do anything (default).
@@ -542,44 +541,36 @@ class RelationManagerMixin( object ):
         #  * PULL        - Pull the reference from a :class:`~mongoengine.ListField` of references
         #
         # For us this means:
-        #  - NULLIFY'd and PULL'ed relations are added to `to_save`
+        #  - DO_NOTHING's, NULLIFY'd and PULL'ed relations are added to `to_save`
         #  - CASCADE'd relations are added to `to_delete` (so the API can decide)
         #  - DENY'd relations raise a ValidationError (which they probably shouldn't)
-        #  - DO_NOTHING's pass for now
-        # FIXME: give DO_NOTHING (the default) some meaning!
         for relation, removed_set in removed_relations.items():
-
-            # FIXME Don't do this on run time! Set it on class instantiation.
             fld = self._fields[ relation ]
-            related_name = getattr( fld, 'related_name', None )
-            if not related_name:
-                # This field is not managed by us
-                continue
 
             if isinstance( fld, ListField ):
                 fld = fld.field
+
+            related_name = getattr( fld, 'related_name', '' )
             related_fld = getattr( fld.document_type, related_name, None )
 
+            # Skip this field; it's not managed by us.
             if not related_fld:
-                # This field is not managed by us.
-                continue 
+                continue
 
-            if isinstance(related_fld, ListField ):
-                rule = related_fld.field.reverse_delete_rule
+            if isinstance( related_fld, ListField ):
+                delete_rule = related_fld.field.reverse_delete_rule
             else:
-                rule = related_fld.reverse_delete_rule
+                delete_rule = related_fld.reverse_delete_rule
 
-            for doc in removed_set:
-                if rule == DO_NOTHING:
-                    raise ValidationError( "Field `{0}` on document `{1}` needs a reverse delete rule for consistency.".format(self._fields[ relation ].related_name, doc._class_name ))
-                if rule == DENY:
-                    raise ValidationError( "Field `{0}` on document `{1}` DENYs removal of `{2}`.".format(self._fields[relation].related_name, doc._class_name, self ))
-                if rule == CASCADE:
-                    to_delete.add(doc)
-                if rule in (NULLIFY, PULL):
-                    to_save.add(doc)
+            if delete_rule == DENY:
+                raise ValidationError( "Field `{0}` on document `{1}` DENYs removal of `{2}`.".format(self._fields[relation].related_name, doc._class_name, self ))
+            elif delete_rule == CASCADE:
+                to_delete.update( removed_set )
+            elif delete_rule in ( DO_NOTHING, NULLIFY, PULL ):
+                to_save.update( removed_set )
 
-        # What happens to removed relations depends on their reverse_delete_rule.
+
+
         return to_save, to_delete
 
 
@@ -701,6 +692,13 @@ class RelationManagerMixin( object ):
 
 
     def update_hasmany( self, field_name, current_related_docs, previous_related_docs=None ):
+        '''
+
+        @param field_name:
+        @param current_related_docs:
+        @param previous_related_docs:
+        @return:
+        '''
         if field_name in self._memo_hasmany:
             field = self._fields[ field_name ]
 
@@ -729,6 +727,12 @@ class RelationManagerMixin( object ):
 
 
     def add_hasmany( self, field_name, value ):
+        '''
+
+        @param field_name:
+        @param value:
+        @return:
+        '''
         self._memoize_documents( value )
 
         if field_name in self._memo_hasmany:
@@ -740,6 +744,12 @@ class RelationManagerMixin( object ):
 
 
     def remove_hasmany( self, field_name, value ):
+        '''
+
+        @param field_name:
+        @param value:
+        @return:
+        '''
         self._memoize_documents( value )
 
         if field_name in self._memo_hasmany:
