@@ -209,6 +209,9 @@ class RelationManagerMixin( object ):
     Raises `RelationalError` if both ends of the relation are not of the
     right type or not pointing to each other.
 
+    Makes sure appropriate `delete_rules` are in place, registering them when
+    they can be derived.
+
     Of course this doesn't guarantee any hard consistency due to possible bugs
     in application code or exceptions down the line. 
     
@@ -216,8 +219,39 @@ class RelationManagerMixin( object ):
     report, any differences between our managed fields.
     """
 
+    def _supplement_delete_rules( self ):
+        '''
+        Every field with a `related_name` should have a `delete_rule` other 
+        than `DO_NOTHING` registered with us so we can keep track of relational
+        integrity. If this isn't the case, register an appropriate one.
+        '''
+        for field_name, fld in self._fields.items():
+            related_name = getattr( fld, 'related_name', None )
+            if not related_name:
+                # Skip this field since it is not managed by us.
+                continue
+
+            if isinstance( fld, ListField ) and hasattr( fld, 'field' ):
+                fld = fld.field
+
+            related_fld = getattr( fld.document_type, related_name, None )
+            if isinstance( related_fld, ListField ):
+                related_fld = related_fld.field
+                new_rule = PULL
+            else:
+                new_rule = NULLIFY
+
+            delete_rule = self._meta['delete_rules'].get((fld.document_type, related_name), DO_NOTHING)
+            if delete_rule == DO_NOTHING:
+                self.register_delete_rule( fld.document_type, related_name, new_rule )
+                print(' ~~ REGISTERING delete rule `{0}` on `{3}.{4}` on `{1}.{2}`.'.format(
+                    'PULL' if new_rule == 4 else 'NULLIFY', self._class_name, field_name, fld.document_type._class_name, related_name) )
+
+
     def __init__( self, *args, **kwargs ):
         super( RelationManagerMixin, self ).__init__( *args, **kwargs )
+
+        self._supplement_delete_rules()
 
         self._initialised = False
         self._init_memo()
@@ -531,8 +565,8 @@ class RelationManagerMixin( object ):
             added_relations, removed_relations[ rel ] = self.get_changes_for_relation( rel )
             to_save.update( added_relations )
 
-        # What should happen to removed relations depends on their
-        # `reverse_delete_rule`, which in MongoEngine is one of:
+        # What should happen to removed relations depends on the delete rule 
+        # they registered with us, which in MongoEngine currently is one of:
         #
         #  * DO_NOTHING  - don't do anything (default).
         #  * NULLIFY     - Updates the reference to null.
@@ -541,35 +575,31 @@ class RelationManagerMixin( object ):
         #  * PULL        - Pull the reference from a :class:`~mongoengine.ListField` of references
         #
         # For us this means:
-        #  - DO_NOTHING's, NULLIFY'd and PULL'ed relations are added to `to_save`
-        #  - CASCADE'd relations are added to `to_delete` (so the API can decide)
-        #  - DENY'd relations raise a ValidationError (which they probably shouldn't)
+        #  - DO_NOTHING's raise an error, since this shouldn't happen for 
+        #    managed relations
+        #  - NULLIFY'd and PULL'ed relations are added to `to_save`
+        #  - CASCADE'd relations are added to `to_delete`
+        #  - DENY'd relations raise a ValidationError
         for relation, removed_set in removed_relations.items():
             fld = self._fields[ relation ]
+            related_name = getattr( fld, 'related_name', '' )
+            if not related_name:
+                # Skip this field; it's not managed by us.
+                continue
 
             if isinstance( fld, ListField ):
                 fld = fld.field
 
-            related_name = getattr( fld, 'related_name', '' )
-            related_fld = getattr( fld.document_type, related_name, None )
+            delete_rule = self._meta['delete_rules'].get((fld.document_type, related_name), DO_NOTHING)
 
-            # Skip this field; it's not managed by us.
-            if not related_fld:
-                continue
-
-            if isinstance( related_fld, ListField ):
-                delete_rule = related_fld.field.reverse_delete_rule
-            else:
-                delete_rule = related_fld.reverse_delete_rule
-
+            if delete_rule == DO_NOTHING:
+                raise ValidationError( "Field `{0}` on {1} has no delete rule.".format(related_name, self))
             if delete_rule == DENY:
-                raise ValidationError( "Field `{0}` on document `{1}` DENYs removal of `{2}`.".format(self._fields[relation].related_name, doc._class_name, self ))
+                raise ValidationError( "Field `{0}` DENYs removal of `{1}`.".format(related_name, self ))
             elif delete_rule == CASCADE:
                 to_delete.update( removed_set )
-            elif delete_rule in ( DO_NOTHING, NULLIFY, PULL ):
+            elif delete_rule in ( NULLIFY, PULL ):
                 to_save.update( removed_set )
-
-
 
         return to_save, to_delete
 
