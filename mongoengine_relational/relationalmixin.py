@@ -322,7 +322,7 @@ class RelationManagerMixin( object ):
             delete_rule = self._meta['delete_rules'].get( ( related_doc_type, related_name ), DO_NOTHING )
             if delete_rule == DO_NOTHING:
                 self.register_delete_rule( related_doc_type, related_name, new_rule )
-                print(' ~~ REGISTERING delete rule `{0}` on `{3}.{4}` on `{1}.{2}`.'.format(
+                print(' ~~ REGISTERING delete rule `{0}` on `{3}.{4}` for relation `{1}.{2}`.'.format(
                     'PULL' if new_rule == 4 else 'NULLIFY', self._class_name, field_name, related_doc_type and related_doc_type._class_name, related_name) )
 
 
