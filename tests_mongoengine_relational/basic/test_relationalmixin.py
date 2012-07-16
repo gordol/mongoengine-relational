@@ -13,6 +13,8 @@ from mongoengine import *
 from mongoengine_relational import *
 from bson import DBRef, ObjectId
 
+from mongoengine_relational.relationalmixin import set_difference
+
 
 class User( RelationManagerMixin, Document ):
     name = StringField()
@@ -276,29 +278,29 @@ class RelationsTestCase( unittest.TestCase ):
         self.assertTrue( lion_doc._equals( lion ) )
 
         # No diff; sets are for the same objectIds
-        self.assertFalse( lion_doc._set_difference( { lion, giraffe }, { lion_doc, giraffe_doc } ) )
+        self.assertFalse( set_difference( { lion, giraffe }, { lion_doc, giraffe_doc } ) )
 
         # removed: `lion`
-        diff = lion_doc._set_difference( { lion, giraffe }, { giraffe_doc } )
+        diff = set_difference( { lion, giraffe }, { giraffe_doc } )
         self.assertEqual( len( diff ), 1 )
         self.assertIn( lion, diff )
 
         # removed: `lion`
-        diff = lion_doc._set_difference( { lion, office }, { office_doc, giraffe_doc } )
+        diff = set_difference( { lion, office }, { office_doc, giraffe_doc } )
         self.assertEqual( len( diff ), 1 )
         self.assertIn( lion, diff )
 
         # removed: `giraffe`
-        diff = lion_doc._set_difference( { lion, giraffe, office }, { office, lion_doc } )
+        diff = set_difference( { lion, giraffe, office }, { office, lion_doc } )
         self.assertEqual( len( diff ), 1 )
         self.assertIn( giraffe, diff )
 
         # No diff; second set is a superset of the first set
-        diff = lion_doc._set_difference( { lion, office }, { lion_doc, office_doc, giraffe_doc } )
+        diff = set_difference( { lion, office }, { lion_doc, office_doc, giraffe_doc } )
         self.assertEqual( len( diff ), 0 )
 
         # removed: the new Document
-        diff = lion_doc._set_difference( { Animal( name='John Doe' ) }, {} )
+        diff = set_difference( { Animal( name='John Doe' ) }, {} )
         self.assertEqual( len( diff ), 1 )
 
 
@@ -340,4 +342,14 @@ class RelationsTestCase( unittest.TestCase ):
         changes = d.artis.get_changed_relations()
 
         print( changes )
+
+
+    def test_memoize_documents( self ):
+        pass
+
+
+    def test_delete_rules( self ):
+        pass
+
+
 

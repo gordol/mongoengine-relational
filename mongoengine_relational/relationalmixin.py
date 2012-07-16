@@ -121,6 +121,7 @@ class BaseList( list ):
         if hasattr( self._instance, '_mark_as_changed' ):
             self._instance._mark_as_changed( self._name )
 
+# Assign `BaseList` to `base` in order to override mongengine's default `BaseList`
 base.BaseList = BaseList
 
 
@@ -215,39 +216,9 @@ class RelationManagerMixin( object ):
     Of course this doesn't guarantee any hard consistency due to possible bugs
     in application code or exceptions down the line. 
     
-    We're pondering about `rebuild` functionality that can repair, or at least
-    report, any differences between our managed fields.
+    (Potential) todo: `rebuild` functionality that can repair, or at least
+    report, any differences between managed fields.
     """
-
-    def _supplement_delete_rules( self ):
-        '''
-        Every field with a `related_name` should have a `delete_rule` other 
-        than `DO_NOTHING` registered with us so we can keep track of relational
-        integrity. If this isn't the case, register an appropriate one.
-        '''
-        for field_name, fld in self._fields.items():
-            related_name = getattr( fld, 'related_name', None )
-            if not related_name:
-                # Skip this field since it is not managed by us.
-                continue
-
-            if isinstance( fld, ListField ) and hasattr( fld, 'field' ):
-                fld = fld.field
-
-            related_fld = getattr( fld.document_type, related_name, None )
-            if isinstance( related_fld, ListField ):
-                related_fld = related_fld.field
-                new_rule = PULL
-            else:
-                new_rule = NULLIFY
-
-            delete_rule = self._meta['delete_rules'].get((fld.document_type, related_name), DO_NOTHING)
-            if delete_rule == DO_NOTHING:
-                self.register_delete_rule( fld.document_type, related_name, new_rule )
-                print(' ~~ REGISTERING delete rule `{0}` on `{3}.{4}` for relation `{1}.{2}`.'.format(
-                    'PULL' if new_rule == 4 else 'NULLIFY', self._class_name, field_name, fld.document_type._class_name, related_name) )
-
-
     def __init__( self, *args, **kwargs ):
         super( RelationManagerMixin, self ).__init__( *args, **kwargs )
 
@@ -327,6 +298,34 @@ class RelationManagerMixin( object ):
                     #print( '  %s <-> %s.%s' % ( name, related_doc_type._class_name, related_field.name ) )
 
 
+    def _supplement_delete_rules( self ):
+        '''
+        Every field with a `related_name` should have a `delete_rule` registered (other than `DO_NOTHING`)
+        so we can keep relational integrity on delete. If this isn't the case, register an appropriate one.
+        '''
+        for field_name, field in self._fields.items():
+            related_name = getattr( field, 'related_name', None )
+            if not related_name:
+                # Skip this field since it is not managed by us.
+                continue
+
+            if isinstance( field, ListField ) and hasattr( field, 'field' ):
+                field = field.field
+
+            related_doc_type = getattr( field, 'document_type', None )
+            related_field = getattr( related_doc_type, related_name, None )
+            if isinstance( related_field, ListField ):
+                new_rule = PULL
+            else:
+                new_rule = NULLIFY
+
+            delete_rule = self._meta['delete_rules'].get( ( related_doc_type, related_name ), DO_NOTHING )
+            if delete_rule == DO_NOTHING:
+                self.register_delete_rule( related_doc_type, related_name, new_rule )
+                print(' ~~ REGISTERING delete rule `{0}` on `{3}.{4}` on `{1}.{2}`.'.format(
+                    'PULL' if new_rule == 4 else 'NULLIFY', self._class_name, field_name, related_doc_type and related_doc_type._class_name, related_name) )
+
+
     def _memoize_related_fields( self ):
         '''
         Creates a copy of the items in our managed fields so we can compare changes.
@@ -349,9 +348,10 @@ class RelationManagerMixin( object ):
 
     def _memoize_documents( self, docs ):
         '''
+        Store the given document(s) in a memo
 
-        @param value:
-        @return:
+        @param docs:
+        @type docs: Document or list or set or tuple
         '''
         if isinstance( docs, Document ):
             docs = [ docs ]
@@ -492,8 +492,8 @@ class RelationManagerMixin( object ):
         for field_name, previous_related_docs in self._memo_hasmany.iteritems():
             current_related_docs = set( self._data[ field_name ] )
 
-            if len( self._set_difference( previous_related_docs, current_related_docs ) ) > 0 or \
-                    len( self._set_difference( current_related_docs, previous_related_docs ) ) > 0:
+            if len( set_difference( previous_related_docs, current_related_docs ) ) > 0 or \
+                    len( set_difference( current_related_docs, previous_related_docs ) ) > 0:
                 changed_fields.add( field_name )
 
         return changed_fields
@@ -522,8 +522,8 @@ class RelationManagerMixin( object ):
 
         elif field_name in self._memo_hasmany:
             old_value = self._memo_hasmany[ field_name ]
-            added_docs = self._set_difference( new_value, old_value )
-            removed_docs = self._set_difference( old_value, new_value )
+            added_docs = set_difference( new_value, old_value )
+            removed_docs = set_difference( old_value, new_value )
 
         else:
             raise RelationalError( "Can't find _memo entry for field_name={}".format( field_name ) )
@@ -602,49 +602,6 @@ class RelationManagerMixin( object ):
                 to_save.update( removed_set )
 
         return to_save, to_delete
-
-
-    def _set_difference( self, first_set, second_set ):
-        '''
-        Determine the difference between two sets containing a (possible) mixture of Documents and DBRefs.
-        The `second_set` is subtracted from the `first_set`.
-        @param first_set:
-        @param second_set:
-        @return:
-        '''
-        diff = set()
-        for doc_or_ref in first_set:
-            match = False
-            for other_doc_or_ref in second_set:
-                if self._equals( doc_or_ref, other_doc_or_ref ):
-                    match = True
-                    break
-
-            if not match:
-                diff.add( doc_or_ref )
-
-        return diff
-
-
-    def _equals( self, doc_or_ref1, doc_or_ref2=False ):
-        '''
-        Determine if two Documents (or DBRefs representing documents) are equal.
-        A DBRef pointing to a Document is considered to be equal to that Document.
-        '''
-        # `None` is also valid input, so only replace `doc_or_ref2` with self if it's exactly `False`
-        if doc_or_ref2 is False:
-            doc_or_ref2 = self
-
-        # If either one is a DBRef, compare the ids (if the other one doesn't have a pk yet, it can't be equal).
-        if (doc_or_ref1 and doc_or_ref2) and (isinstance( doc_or_ref1, DBRef ) or isinstance( doc_or_ref2, DBRef )):
-            doc_or_ref1 = doc_or_ref1.id if isinstance( doc_or_ref1, DBRef ) else doc_or_ref1.pk
-            doc_or_ref2 = doc_or_ref2.id if isinstance( doc_or_ref2, DBRef ) else doc_or_ref2.pk
-
-        return doc_or_ref1 == doc_or_ref2
-
-
-    def _nequals( self, doc_or_ref1, doc_or_ref2=None ):
-        return not self._equals( doc_or_ref1, doc_or_ref2 )
 
 
     def update_relations( self, rebuild=False ):
@@ -744,8 +701,8 @@ class RelationManagerMixin( object ):
                 self._memoize_documents( previous_related_docs )
                 self._memoize_documents( current_related_docs )
 
-                added_docs = self._set_difference( current_related_docs, previous_related_docs )
-                removed_docs = self._set_difference( previous_related_docs, current_related_docs )
+                added_docs = set_difference( current_related_docs, previous_related_docs )
+                removed_docs = set_difference( previous_related_docs, current_related_docs )
 
                 for related_doc in removed_docs:
                     if isinstance( related_doc, RelationManagerMixin ):
@@ -788,3 +745,59 @@ class RelationManagerMixin( object ):
             if hasattr( field, 'related_name' ):
                 # the other side of the relation is always a 'hasone'
                 value.update_hasone( field.related_name, None )
+
+
+    #
+    # Utility comparison functions, to compare a mix of DBRefs and Documents
+    #
+
+    def _equals( self, doc_or_ref1, doc_or_ref2=False ):
+        # `None` is also valid input, so only replace `doc_or_ref2` with self if it's exactly `False`
+        if doc_or_ref2 is False:
+            doc_or_ref2 = self
+
+        return equals( doc_or_ref1, doc_or_ref2 )
+
+
+    def _nequals( self, doc_or_ref1, doc_or_ref2=False ):
+        return nequals( doc_or_ref1, doc_or_ref2 )
+
+
+def set_difference( first_set, second_set ):
+    '''
+    Determine the difference between two sets containing a (possible) mixture of Documents and DBRefs.
+    The `second_set` is subtracted from the `first_set`.
+    @param first_set:
+    @param second_set:
+    @return:
+    '''
+    diff = set()
+    for doc_or_ref in first_set:
+        match = False
+        for other_doc_or_ref in second_set:
+            if equals( doc_or_ref, other_doc_or_ref ):
+                match = True
+                break
+
+        if not match:
+            diff.add( doc_or_ref )
+
+    return diff
+
+
+def equals( doc_or_ref1, doc_or_ref2=False ):
+    '''
+    Determine if two Documents (or DBRefs representing documents) are equal.
+    A DBRef pointing to a Document is considered to be equal to that Document.
+    '''
+
+    # If either one is a DBRef, compare the ids (if the other one doesn't have a pk yet, it can't be equal).
+    if (doc_or_ref1 and doc_or_ref2) and (isinstance( doc_or_ref1, DBRef ) or isinstance( doc_or_ref2, DBRef )):
+        doc_or_ref1 = doc_or_ref1.id if isinstance( doc_or_ref1, DBRef ) else doc_or_ref1.pk
+        doc_or_ref2 = doc_or_ref2.id if isinstance( doc_or_ref2, DBRef ) else doc_or_ref2.pk
+
+    return doc_or_ref1 == doc_or_ref2
+
+
+def nequals( doc_or_ref1, doc_or_ref2=None ):
+    return not equals( doc_or_ref1, doc_or_ref2 )
