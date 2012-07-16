@@ -4,7 +4,7 @@ from __future__ import unicode_literals
 from mongoengine import Document, GenericReferenceField, ReferenceField, ListField, ValidationError
 from mongoengine import base
 from mongoengine.queryset import CASCADE, DO_NOTHING, NULLIFY, DENY, PULL
-from bson import DBRef
+from bson import DBRef, ObjectId
 
 
 class BaseList( list ):
@@ -791,10 +791,12 @@ def equals( doc_or_ref1, doc_or_ref2=False ):
     A DBRef pointing to a Document is considered to be equal to that Document.
     '''
 
-    # If either one is a DBRef, compare the ids (if the other one doesn't have a pk yet, it can't be equal).
-    if (doc_or_ref1 and doc_or_ref2) and (isinstance( doc_or_ref1, DBRef ) or isinstance( doc_or_ref2, DBRef )):
-        doc_or_ref1 = doc_or_ref1.id if isinstance( doc_or_ref1, DBRef ) else doc_or_ref1.pk
-        doc_or_ref2 = doc_or_ref2.id if isinstance( doc_or_ref2, DBRef ) else doc_or_ref2.pk
+    # If either one is an ObjectId or DBRef, compare ids.
+    # (if the other object doesn't have a pk yet, they can't be equal).
+    if (doc_or_ref1 and doc_or_ref2):
+        if (isinstance( doc_or_ref1, (ObjectId, DBRef) ) or isinstance( doc_or_ref2, (ObjectId, DBRef) )):
+            doc_or_ref1 = doc_or_ref1.id if isinstance( doc_or_ref1, DBRef ) else doc_or_ref1 if isinstance( doc_or_ref1, ObjectId ) else doc_or_ref1.pk
+            doc_or_ref2 = doc_or_ref2.id if isinstance( doc_or_ref2, DBRef ) else doc_or_ref2 if isinstance( doc_or_ref2, ObjectId ) else doc_or_ref2.pk
 
     return doc_or_ref1 == doc_or_ref2
 
