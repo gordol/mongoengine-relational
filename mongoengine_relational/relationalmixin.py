@@ -316,14 +316,16 @@ class RelationManagerMixin( object ):
             related_field = getattr( related_doc_type, related_name, None )
             if isinstance( related_field, ListField ):
                 new_rule = PULL
-            else:
+            elif not related_field.required:
                 new_rule = NULLIFY
+            else:
+                new_rule = DENY
 
             delete_rule = self._meta['delete_rules'].get( ( related_doc_type, related_name ), DO_NOTHING )
             if delete_rule == DO_NOTHING:
                 self.register_delete_rule( related_doc_type, related_name, new_rule )
                 print(' ~~ REGISTERING delete rule `{0}` on `{3}.{4}` for relation `{1}.{2}`.'.format(
-                    'PULL' if new_rule == 4 else 'NULLIFY', self._class_name, field_name, related_doc_type and related_doc_type._class_name, related_name) )
+                    'PULL' if new_rule == 4 else 'DENY' if new_rule == 3 else 'NULLIFY', self._class_name, field_name, related_doc_type and related_doc_type._class_name, related_name) )
 
 
     def _memoize_related_fields( self ):
@@ -595,7 +597,8 @@ class RelationManagerMixin( object ):
             if delete_rule == DO_NOTHING:
                 raise ValidationError( "Field `{0}` on {1} has no delete rule.".format(related_name, self))
             if delete_rule == DENY:
-                raise ValidationError( "Field `{0}` DENYs removal of `{1}`.".format(related_name, self ))
+                # This object will be updated by other rules.
+                pass
             elif delete_rule == CASCADE:
                 to_delete.update( removed_set )
             elif delete_rule in ( NULLIFY, PULL ):
