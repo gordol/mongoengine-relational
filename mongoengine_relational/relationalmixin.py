@@ -427,7 +427,12 @@ class RelationManagerMixin( object ):
 
 
     def delete( self, safe=False ):
-        # Before deleting this document, clear relations
+        '''
+        Over `delete` to clear existing relations before performing the actual delete, to prevent
+        lingering references to this document when it's gone.
+        @param safe:
+        @return:
+        '''
         self.clear_relations()
 
         return super( RelationManagerMixin, self ).delete( safe=safe )
@@ -644,15 +649,16 @@ class RelationManagerMixin( object ):
         '''
         if field_name in self._memo_hasone:
             field = self._fields[ field_name ]
+            related_doc = self[ field_name ]
+            self._memoize_documents( related_doc )
 
             if hasattr( field, 'related_name' ):
                 # Remove old value
                 # TODO: this was changed from `self._data[ field_name ]` to self[ field_name ];
                 # verify this doesn't cause (way) too much queries..
-                related_doc = self[ field_name ]
+
 
                 if related_doc and isinstance( related_doc, RelationManagerMixin ):
-                    self._memoize_documents( related_doc )
                     related_data = getattr( related_doc, field.related_name )
 
                     if isinstance( related_data, ( list, tuple ) ):
@@ -692,18 +698,18 @@ class RelationManagerMixin( object ):
         if field_name in self._memo_hasmany:
             field = self._fields[ field_name ]
 
+            if previous_related_docs is None:
+                previous_related_docs = set( self._memo_hasmany[ field_name ] )
+            else:
+                previous_related_docs = set( previous_related_docs )
+
+            current_related_docs = set( current_related_docs )
+
+            self._memoize_documents( previous_related_docs )
+            self._memoize_documents( current_related_docs )
+
             # Only process fields that have a related_name set.
             if hasattr( field, 'related_name' ):
-                if previous_related_docs is None:
-                    previous_related_docs = set( self._memo_hasmany[ field_name ] )
-                else:
-                    previous_related_docs = set( previous_related_docs )
-
-                current_related_docs = set( current_related_docs )
-
-                self._memoize_documents( previous_related_docs )
-                self._memoize_documents( current_related_docs )
-
                 added_docs = set_difference( current_related_docs, previous_related_docs )
                 removed_docs = set_difference( previous_related_docs, current_related_docs )
 

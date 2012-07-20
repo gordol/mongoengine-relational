@@ -11,7 +11,7 @@ from pyramid.request import Request
 
 from mongoengine import *
 from mongoengine_relational import *
-from bson import DBRef, ObjectId
+from bson import DBRef
 
 from mongoengine_relational.relationalmixin import set_difference
 
