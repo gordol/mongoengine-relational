@@ -314,18 +314,19 @@ class RelationManagerMixin( object ):
 
             related_doc_type = getattr( field, 'document_type', None )
             related_field = getattr( related_doc_type, related_name, None )
-            if isinstance( related_field, ListField ):
-                new_rule = PULL
-            elif not related_field.required:
-                new_rule = NULLIFY
-            else:
-                new_rule = DENY
+            if related_field:
+                if isinstance( related_field, ListField ):
+                    new_rule = PULL
+                elif not related_field.required:
+                    new_rule = NULLIFY
+                else:
+                    new_rule = DENY
 
-            delete_rule = self._meta['delete_rules'].get( ( related_doc_type, related_name ), DO_NOTHING )
-            if delete_rule == DO_NOTHING:
-                self.register_delete_rule( related_doc_type, related_name, new_rule )
-                print(' ~~ REGISTERING delete rule `{0}` on `{3}.{4}` for relation `{1}.{2}`.'.format(
-                    'PULL' if new_rule == 4 else 'DENY' if new_rule == 3 else 'NULLIFY', self._class_name, field_name, related_doc_type and related_doc_type._class_name, related_name) )
+                delete_rule = self._meta['delete_rules'].get( ( related_doc_type, related_name ), DO_NOTHING )
+                if delete_rule == DO_NOTHING:
+                    self.register_delete_rule( related_doc_type, related_name, new_rule )
+                    print(' ~~ REGISTERING delete rule `{0}` on `{3}.{4}` for relation `{1}.{2}`.'.format(
+                        'PULL' if new_rule == 4 else 'DENY' if new_rule == 3 else 'NULLIFY', self._class_name, field_name, related_doc_type and related_doc_type._class_name, related_name) )
 
 
     def _memoize_related_fields( self ):
@@ -362,6 +363,32 @@ class RelationManagerMixin( object ):
             documents = { doc for doc in docs if isinstance( doc, Document ) }
             self._memo_related_docs.update( documents )
 
+    def get( self, field_name, request ):
+        '''
+        Get documents for a relation; retrieves documents from cache if possible.
+
+        @param name:
+        @type name: basestring
+        @param
+        '''
+        data = self._data[ field_name ]
+        field = self._fields[ field_name ]
+        result = None
+
+        if isinstance( data, DBRef ):
+            result = request.cache[ data ]
+        elif hasattr( field, 'field' ):
+            # Only fetch documents from our document cache if all data items can be found
+            if all( str(obj.id) in request.cache for obj in data ):
+                result = [ request.cache[ str(obj.id) ] for obj in data ]
+
+        if not result:
+            result = self[ field_name ]
+
+            # Add results to the cache
+            request.cache.add( result )
+
+        return result
 
     def save( self, safe=True, force_insert=False, validate=True, write_options=None, cascade=None, cascade_kwargs=None, _refs=None, request=None ):
         ''' 
@@ -729,6 +756,9 @@ class RelationManagerMixin( object ):
         @param value:
         @return:
         '''
+        if not isinstance( value, Document ):
+            return
+
         self._memoize_documents( value )
 
         if field_name in self._memo_hasmany:
@@ -746,6 +776,9 @@ class RelationManagerMixin( object ):
         @param value:
         @return:
         '''
+        if not isinstance( value, Document ):
+            return
+
         self._memoize_documents( value )
 
         if field_name in self._memo_hasmany:
@@ -802,8 +835,8 @@ def equals( doc_or_ref1, doc_or_ref2=False ):
 
     # If either one is an ObjectId or DBRef, compare ids.
     # (if the other object doesn't have a pk yet, they can't be equal).
-    if (doc_or_ref1 and doc_or_ref2):
-        if (isinstance( doc_or_ref1, (ObjectId, DBRef) ) or isinstance( doc_or_ref2, (ObjectId, DBRef) )):
+    if doc_or_ref1 and doc_or_ref2:
+        if isinstance( doc_or_ref1, (ObjectId, DBRef) ) or isinstance( doc_or_ref2, (ObjectId, DBRef) ):
             doc_or_ref1 = doc_or_ref1.id if isinstance( doc_or_ref1, DBRef ) else doc_or_ref1 if isinstance( doc_or_ref1, ObjectId ) else doc_or_ref1.pk
             doc_or_ref2 = doc_or_ref2.id if isinstance( doc_or_ref2, DBRef ) else doc_or_ref2 if isinstance( doc_or_ref2, ObjectId ) else doc_or_ref2.pk
 
