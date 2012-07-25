@@ -377,7 +377,8 @@ class RelationManagerMixin( object ):
 
         if isinstance( data, DBRef ):
             result = request.cache[ data ]
-            self._data[ field_name ] = result
+            if isinstance( result, Document ):
+                self._data[ field_name ] = result
         elif isinstance( data, list ) and hasattr( field, 'field' ):
             # Only fetch documents from our document cache if all data items can be found
             if all( str(obj.id) in request.cache for obj in data ):
@@ -385,7 +386,7 @@ class RelationManagerMixin( object ):
                 self._data[ field_name ] = result
 
         if not result:
-            result = self[ field_name ]
+            result = getattr( self, field_name )
 
             # Add fetched documents to the cache
             request.cache.add( result )
