@@ -94,6 +94,9 @@ class CacheTestCase( unittest.TestCase ):
     def test_document_get( self ):
         d = self.data
 
+        # Get something silly, non-relational
+        d.artis.get( 'name', self.request )
+
         # Add `tiger` to the cache; it's zoo isn't in there yet
         d.cache.add( d.tiger )
 

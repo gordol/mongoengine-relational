@@ -4,6 +4,7 @@ from __future__ import unicode_literals
 from mongoengine import Document
 from mongoengine.base import ObjectId
 from mongoengine.queryset import QuerySet
+from bson import DBRef
 
 
 class DocumentCache( object ):
@@ -21,11 +22,7 @@ class DocumentCache( object ):
     def __getitem__( self, id ):
         """Dictionary-style field access, return a field's value if present.
         """
-        try:
-            id = id.pk if isinstance( id, Document ) else id
-            return self._documents[ str( id ) ]
-        except KeyError:
-            return None
+        return self.get( id )
 
     def __setitem__(self, id, value):
         """Dictionary-style field access, set a field's value.
@@ -38,12 +35,19 @@ class DocumentCache( object ):
         return self.remove( id )
 
     def __contains__( self, id ):
-        id = id.pk if isinstance( id, Document ) else id
+        id = id.id if isinstance( id, ( DBRef, Document ) ) else id
         value = self[ str( id ) ]
         return value is not None
 
     def __len__(self):
         return len( self._documents )
+
+    def get( self, id, default=None ):
+        try:
+            id = id.id if isinstance( id, ( DBRef, Document ) ) else id
+            return self._documents[ str( id ) ]
+        except KeyError:
+            return default
 
     def add( self, documents ):
         '''
@@ -52,10 +56,13 @@ class DocumentCache( object ):
         @param documents:
         @type documents: Document or list or set or QuerySet
         '''
+        if not documents:
+            return
+
         if isinstance( documents, Document ):
             if documents.pk:
                 self._documents[ str( documents.pk ) ] = documents
-        else:
+        elif isinstance( documents, ( list, set, QuerySet ) ):
             self._documents.update( ( str( obj.pk ), obj ) for obj in documents if obj.pk )
 
     def remove( self, documents ):
@@ -63,14 +70,17 @@ class DocumentCache( object ):
         Remove one or more documents from the cache.
 
         @param documents:
-        @type documents: Document or list or set or QuerySet
+        @type documents: DBRef or Document or ObjectId or list or set or QuerySet
         '''
-        if isinstance( documents, Document ):
-            if documents.pk:
-                del self._documents[ str( documents.pk ) ]
+        if not documents:
+            return
+
+        if isinstance( documents, ( DBRef, Document ) ):
+            if documents.id:
+                del self._documents[ str( documents.id ) ]
         elif isinstance( documents, ObjectId ):
             del self._documents[ str( documents ) ]
-        else:
+        elif isinstance( documents, ( list, set, QuerySet ) ):
             for obj in documents:
                 self._documents.pop( str( obj.pk ) )
 
