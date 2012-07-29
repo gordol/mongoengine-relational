@@ -159,6 +159,12 @@ class RelationsTestCase( unittest.TestCase ):
         self.assertNotIn( d.tiger, d.artis.animals )
         self.assertIn( d.tiger, d.blijdorp.animals )
 
+        # Reset `d.blijdorp.animals` by assigning it an empty list
+        d.blijdorp.animals = []
+
+        self.assertFalse( d.bear.zoo, d.blijdorp )
+        self.assertNotIn( d.bear, d.blijdorp.animals )
+
 
     def test_update_hasone( self ):
         d = self.data

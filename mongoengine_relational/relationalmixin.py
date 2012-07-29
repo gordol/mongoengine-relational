@@ -791,7 +791,6 @@ class RelationManagerMixin( object ):
                 # the other side of the relation is always a 'hasone'
                 value.update_hasone( field.related_name, None )
 
-
     #
     # Utility comparison functions, to compare a mix of DBRefs and Documents
     #
@@ -802,7 +801,6 @@ class RelationManagerMixin( object ):
             doc_or_ref2 = self
 
         return equals( doc_or_ref1, doc_or_ref2 )
-
 
     def _nequals( self, doc_or_ref1, doc_or_ref2=False ):
         return nequals( doc_or_ref1, doc_or_ref2 )
