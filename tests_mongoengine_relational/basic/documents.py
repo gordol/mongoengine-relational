@@ -23,8 +23,8 @@ class Zoo( RelationManagerMixin, Document ):
     animals = ListField( ReferenceField( 'Animal' ), related_name='zoo' ) # hasmany relation
     office = ReferenceField( 'Office', related_name='tenant' ) # one-to-one relation (incl. 1 side generic)
 
-    def on_change_animals( self, value, old_value, added_docs, removed_docs, **kwargs ):
-        print( ('animals updated; new={}, old={}, added={}, removed={}').format( value, old_value, added_docs, removed_docs ) )
+    def on_change_animals( self, request, value, prev_value, added_docs, removed_docs, **kwargs ):
+        print( ('animals updated; new={}, old={}, added={}, removed={}').format( value, prev_value, added_docs, removed_docs ) )
 
 
 class Animal( RelationManagerMixin, Document ):
@@ -32,8 +32,8 @@ class Animal( RelationManagerMixin, Document ):
     species = StringField( required=True )
     zoo = ReferenceField( 'Zoo', related_name='animals', required=True ) # hasmany relation
 
-    def on_change_zoo( self, value, old_value, **kwargs ):
-        print( ('zoo updated; new={}, old={}').format( value, old_value ) )
+    def on_change_zoo( self, request, value, prev_value, **kwargs ):
+        print( ('zoo updated; new={}, old={}').format( value, prev_value ) )
 
 
 class Node( RelationManagerMixin, Document ):

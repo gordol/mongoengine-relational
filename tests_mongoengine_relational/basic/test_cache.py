@@ -95,7 +95,7 @@ class CacheTestCase( unittest.TestCase ):
         d = self.data
 
         # Get something silly, non-relational
-        d.artis.get( 'name', self.request )
+        d.artis.get( self.request, 'name' )
 
         # Add `tiger` to the cache; it's zoo isn't in there yet
         d.cache.add( d.tiger )
@@ -103,7 +103,7 @@ class CacheTestCase( unittest.TestCase ):
         # Get a single doc
         self.assertFalse( d.artis in d.cache )
 
-        zoo = d.tiger.get( 'zoo', self.request )
+        zoo = d.tiger.get( self.request, 'zoo' )
         self.assertEqual( d.artis, zoo )
 
         self.assertTrue( d.artis in d.cache )
@@ -112,13 +112,13 @@ class CacheTestCase( unittest.TestCase ):
         lion = DBRef( 'Animal', get_object_id() )
         lion_doc = Animal( id=lion.id, name="Simba" )
 
-        self.assertTrue( d.tiger in d.artis.get( 'animals', self.request ) )
+        self.assertTrue( d.tiger in d.artis.get( self.request, 'animals' ) )
 
         # Add `lion` to `animals`, and `lion_doc` to the cache; the cache should be able to find everything now
         d.artis.animals.append( lion )
         d.cache.add( lion_doc )
 
-        self.assertTrue( lion_doc in d.artis.get( 'animals', self.request ) )
+        self.assertTrue( lion_doc in d.artis.get( self.request, 'animals' ) )
 
 
 

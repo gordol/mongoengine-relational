@@ -1,6 +1,8 @@
 from __future__ import print_function
 from __future__ import unicode_literals
 
+from pyramid.request import Request
+
 from mongoengine import Document, GenericReferenceField, ReferenceField, ListField, ValidationError
 from mongoengine import base
 from mongoengine.queryset import CASCADE, DO_NOTHING, NULLIFY, DENY, PULL
@@ -24,7 +26,6 @@ class BaseList( list ):
             self._observer = self._instance
 
         super( BaseList, self ).__init__( list_items )
-
 
     def __setitem__(self, key, element ):
         self._mark_as_changed()
@@ -237,7 +238,6 @@ class RelationManagerMixin( object ):
             # Sync the memos with the current Document state
             self._memoize_related_fields()
 
-
     def __setattr__( self, key, value ):
         '''
         Overridden to track changes on simple `ReferenceField`s.
@@ -249,7 +249,6 @@ class RelationManagerMixin( object ):
                 self.update_hasmany( key, value, self[ key ] )
 
         return super( RelationManagerMixin, self ).__setattr__( key, value )
-
 
     def _init_memo( self ):
         '''
@@ -297,7 +296,6 @@ class RelationManagerMixin( object ):
 
                     #print( '  %s <-> %s.%s' % ( name, related_doc_type._class_name, related_field.name ) )
 
-
     def _supplement_delete_rules( self ):
         '''
         Every field with a `related_name` should have a `delete_rule` registered (other than `DO_NOTHING`)
@@ -328,26 +326,31 @@ class RelationManagerMixin( object ):
                     print(' ~~ REGISTERING delete rule `{0}` on `{3}.{4}` for relation `{1}.{2}`.'.format(
                         'PULL' if new_rule == 4 else 'DENY' if new_rule == 3 else 'NULLIFY', self._class_name, field_name, related_doc_type and related_doc_type._class_name, related_name) )
 
-
-    def _memoize_related_fields( self ):
+    def _memoize_related_fields( self, field_name=None ):
         '''
         Creates a copy of the items in our managed fields so we can compare changes.
+
+        @param field_name: limit the fields that are memoized to the given field.
+            If not specified, all fields are memoized.
+        @type field_name: string
+        @return:
         '''
         if not self.pk:
             return False
 
-        for field_name in self._memo_hasone.keys():
+        for name in self._memo_hasone.keys():
             # Remember a single reference
-            related_doc = self._data[ field_name ]
-            self._memoize_documents( related_doc )
-            self._memo_hasone[ field_name ] = related_doc
+            if not field_name or field_name == name:
+                related_doc = self._data[ name ]
+                self._memoize_documents( related_doc )
+                self._memo_hasone[ name ] = related_doc
 
-        for field_name in self._memo_hasmany.keys():
+        for name in self._memo_hasmany.keys():
             # Remember a set of references
-            related_docs = set( self._data[ field_name ] )
-            self._memoize_documents( related_docs )
-            self._memo_hasmany[ field_name ] = related_docs
-
+            if not field_name or field_name == name:
+                related_docs = set( self._data[ name ] )
+                self._memoize_documents( related_docs )
+                self._memo_hasmany[ name ] = related_docs
 
     def _memoize_documents( self, docs ):
         '''
@@ -363,14 +366,18 @@ class RelationManagerMixin( object ):
             documents = { doc for doc in docs if isinstance( doc, Document ) }
             self._memo_related_docs.update( documents )
 
-    def get( self, field_name, request ):
+    def fetch( self, request, field_name ):
         '''
         Get documents for a relation; retrieves documents from cache if possible.
 
-        @param name:
-        @type name: basestring
+        @type request: pyramid.request.Request
+        @param field_name:
+        @type field_name: basestring
         @param
         '''
+        if not isinstance( request, Request ):
+            raise ValueError( 'request={} should be an instance of `pyramid.request.Request`'.format( request ) )
+
         data = self._data[ field_name ]
         field = self._fields[ field_name ]
         result = None
@@ -393,7 +400,7 @@ class RelationManagerMixin( object ):
 
         return result
 
-    def save( self, safe=True, force_insert=False, validate=True, write_options=None, cascade=None, cascade_kwargs=None, _refs=None, request=None ):
+    def save( self, request=None, safe=True, force_insert=False, validate=True, write_options=None, cascade=None, cascade_kwargs=None, _refs=None ):
         ''' 
         Override `save`. If a document is being saved for the first time,
         it will be given an id (if the save was successful).  
@@ -402,6 +409,8 @@ class RelationManagerMixin( object ):
 
         if not request:
             raise ValueError( '`save` needs a `request` parameter (in order to properly invoke `on_change*` callbacks)' )
+        elif not isinstance( request, Request ):
+            raise ValueError( 'request={} should be an instance of `pyramid.request.Request`'.format( request ) )
 
         # Stuff `request` in `cascade_kwargs`, so `cascade_save` will receive it as a kwarg
         cascade_kwargs = cascade_kwargs or {}
@@ -427,7 +436,7 @@ class RelationManagerMixin( object ):
             # Trigger `on_change_pk` if it's present. `pk` is a special case since it isn't a relation,
             # so it won't be triggered through `_on_change`.
             if hasattr( self, 'on_change_pk' ):
-                self.on_change_pk( value=self.pk, old_value=None, request=request, field_name=self._meta[ 'id_field' ] )
+                self.on_change_pk( value=self.pk, prev_value=None, request=request, field_name=self._meta[ 'id_field' ] )
 
             # Trigger `on_change*` callbacks for changed relations, so we can set new privileges
             self._on_change( request )
@@ -477,6 +486,29 @@ class RelationManagerMixin( object ):
 
         return super( RelationManagerMixin, self ).delete( safe=safe )
 
+    def update( self, request, field_name=None, **kwargs ):
+        '''
+        Update the Document.
+
+        @param request:
+        @type request: pyramid.request.Request
+        @param field_name:
+        @type field_name: string
+        @return:
+        '''
+        if not isinstance( request, Request ):
+            raise ValueError( 'request={} should be an instance of `pyramid.request.Request`'.format( request ) )
+
+        if field_name:
+            # Add `field_name` to kwargs, so it will be passed to the `update` call
+            kwargs[ 'set__{}'.format( field_name ) ] = self[ field_name ]
+
+        result = super( RelationManagerMixin, self ).update( **kwargs )
+
+        if field_name:
+            self._on_change( request, field_name )
+
+        return result
 
     def clear_relations( self ):
         '''
@@ -490,34 +522,38 @@ class RelationManagerMixin( object ):
             for related_doc in current_related_docs:
                 self.remove_hasmany( field_name, related_doc )
 
-
-    def _on_change( self, request ):
+    def _on_change( self, request, field_name=None ):
         '''
         Handle Document changes. Triggers `on_change*` callbacks to handle changes on specific relations.
+
+        @param field_name: limit the fields that are processed (handlers triggerd, and memoized) to
+            the given field. If not specified, all fields are processed.
+        @type field_name: string
         '''
         changed_relations = self.get_changed_relations()
 
         if hasattr( self, 'on_change' ):
-            self.on_change( changed_relations=changed_relations, request=request )
+            self.on_change( request=request, changed_relations=changed_relations )
 
-        for field_name in changed_relations:
-            # Determine which callback to use. If a callback exists, invoke it.
-            method = getattr( self, 'on_change_{}'.format( field_name ), None )
-            if callable( method ):
-                added_docs, removed_docs = self.get_changes_for_relation( field_name )
+        for name in changed_relations:
+            # Determine which callback to use. If a callback exists, invoke it if `field_name`
+            # is not set, or `field_name` matches `field`0
+            method = getattr( self, 'on_change_{}'.format( name ), None )
 
-                if field_name in self._memo_hasone:
-                    new_value = added_docs.pop() if len( added_docs ) else None
-                    old_value = removed_docs.pop() if len( removed_docs ) else None
-                    method( value=new_value, old_value=old_value, request=request, field_name=field_name, 
+            if callable( method ) and ( not field_name or name == field_name ):
+                added_docs, removed_docs = self.get_changes_for_relation( name )
+
+                if name in self._memo_hasone:
+                    curr_value = added_docs.pop() if len( added_docs ) else None
+                    prev_value = removed_docs.pop() if len( removed_docs ) else None
+                    method( request=request, value=curr_value, prev_value=prev_value, field_name=name,
                             added_docs=None, removed_docs=None )
-                elif field_name in self._memo_hasmany:
-                    method( value=None, old_value=None, request=request, field_name=field_name,
+                elif name in self._memo_hasmany:
+                    method( request=request, value=None, prev_value=None, field_name=name,
                             added_docs=added_docs, removed_docs=removed_docs )
 
         # Sync the memos with the current Document state
-        self._memoize_related_fields()
-
+        self._memoize_related_fields( field_name )
 
     def get_changed_relations( self ): 
         ''' 
@@ -545,7 +581,6 @@ class RelationManagerMixin( object ):
 
         return changed_fields
 
-
     def get_changes_for_relation( self, field_name ):
         '''
         Get the changeset (added and removed Documents)for a single relation.
@@ -561,16 +596,16 @@ class RelationManagerMixin( object ):
         removed_docs = set()
 
         if field_name in self._memo_hasone:
-            old_value = self._memo_hasone[ field_name ]
-            if old_value:
-                removed_docs.add( old_value )
+            prev_value = self._memo_hasone[ field_name ]
+            if prev_value:
+                removed_docs.add( prev_value )
             if new_value:
                 added_docs.add( new_value )
 
         elif field_name in self._memo_hasmany:
-            old_value = self._memo_hasmany[ field_name ]
-            added_docs = set_difference( new_value, old_value )
-            removed_docs = set_difference( old_value, new_value )
+            prev_value = self._memo_hasmany[ field_name ]
+            added_docs = set_difference( new_value, prev_value )
+            removed_docs = set_difference( prev_value, new_value )
 
         else:
             raise RelationalError( "Can't find _memo entry for field_name={}".format( field_name ) )
@@ -595,7 +630,6 @@ class RelationManagerMixin( object ):
                     raise ValidationError( 'Cannot find Document for DBRef={}'.format( doc_or_ref ) )
 
         return added_docs, removed_docs
-
 
     def get_related_documents_to_update( self ):
         '''
@@ -651,16 +685,13 @@ class RelationManagerMixin( object ):
 
         return to_save, to_delete
 
-
-    def update_relations( self, rebuild=False ):
+    def update_relations( self ):
         '''
         Updates the 'other side' of our managed related fields explicitly, based on the difference between
         the related document(s) stored in the `_memo`s and the current situation.
         '''
-
-        # Do not reciprocate relations when we don't have an id yet, as this
-        # will cause related documents to fail validation and become
-        # unsaveable.
+        # Do not reciprocate relations when this Document doesn't have an id yet, as this
+        # will cause related documents to fail validation and become unsaveable.
         if not self.pk:
             return False
 
@@ -677,7 +708,6 @@ class RelationManagerMixin( object ):
             self.update_hasmany( field_name, self._data[ field_name ] )
 
         return True
-
 
     def update_hasone( self, field_name, new_value ):
         '''
@@ -726,7 +756,6 @@ class RelationManagerMixin( object ):
 
             self._data[ field_name ] = new_value
 
-
     def update_hasmany( self, field_name, current_related_docs, previous_related_docs=None ):
         '''
 
@@ -761,7 +790,6 @@ class RelationManagerMixin( object ):
                     if isinstance( related_doc, RelationManagerMixin ):
                         related_doc.update_hasone( field.related_name, self )
 
-
     def add_hasmany( self, field_name, value ):
         '''
 
@@ -780,7 +808,6 @@ class RelationManagerMixin( object ):
             if hasattr( field, 'related_name' ):
                 # the other side of the relation is always a 'hasone'
                 value.update_hasone( field.related_name, self )
-
 
     def remove_hasmany( self, field_name, value ):
         '''

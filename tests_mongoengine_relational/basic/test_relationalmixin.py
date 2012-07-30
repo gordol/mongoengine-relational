@@ -198,10 +198,13 @@ class RelationsTestCase( unittest.TestCase ):
 
 
     def test_get_changed_relations( self ):
-        self.assertEqual( 0, len( self.data.tiger.get_changed_relations() ) )
+        d = self.data
 
-        changed_relations = self.data.bear.get_changed_relations()
-        self.assertIn( 'zoo', changed_relations )
+        self.assertIn( 'zoo', d.bear.get_changed_relations() )
+
+        self.assertEqual( 0, len( d.tiger.get_changed_relations() ) )
+        d.tiger.zoo = d.blijdorp
+        self.assertIn( 'zoo', d.tiger.get_changed_relations() )
 
 
     def test_update_managed_relations( self ):
@@ -308,9 +311,18 @@ class RelationsTestCase( unittest.TestCase ):
     def test_memoize_documents( self ):
         pass
 
-
     def test_delete_rules( self ):
         pass
+
+    def test_update( self ):
+        d = self.data
+
+        self.assertIn( 'animals', d.artis.get_changed_relations() )
+
+        # Updating a relation should memoize it, and thus remove it from `get_changed_relations`
+        d.artis.update( self.request, 'animals' )
+        self.assertNotIn( 'animals', d.artis.get_changed_relations() )
+
 
 
 
