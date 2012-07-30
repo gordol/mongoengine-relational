@@ -409,6 +409,10 @@ class RelationManagerMixin( object ):
 
         is_new = self.pk is None
 
+        # Trigger `pre_save` hook if it's defined on this Document
+        if hasattr( self, 'pre_save' ):
+            self.pre_save( request )
+
         # Trigger `on_change*` callbacks for changed relations, so we can set new privileges
         if not is_new:
             self._on_change( request )
@@ -420,11 +424,17 @@ class RelationManagerMixin( object ):
         if is_new:
             self.update_relations()
 
+            # Trigger `on_change_pk` if it's present. `pk` is a special case since it isn't a relation,
+            # so it won't be triggered through `_on_change`.
             if hasattr( self, 'on_change_pk' ):
                 self.on_change_pk( value=self.pk, old_value=None, request=request, field_name=self._meta[ 'id_field' ] )
 
             # Trigger `on_change*` callbacks for changed relations, so we can set new privileges
             self._on_change( request )
+
+        # Trigger `post_save` hook if it's defined on this Document
+        if hasattr( self, 'post_save' ):
+            self.post_save( request )
 
         return result
 
@@ -502,7 +512,7 @@ class RelationManagerMixin( object ):
                     method( value=new_value, old_value=old_value, request=request, field_name=field_name, 
                             added_docs=None, removed_docs=None )
                 elif field_name in self._memo_hasmany:
-                    method( value=None, old_value=None, request=request, field_name=field_name, 
+                    method( value=None, old_value=None, request=request, field_name=field_name,
                             added_docs=added_docs, removed_docs=removed_docs )
 
         # Sync the memos with the current Document state
