@@ -662,26 +662,28 @@ class RelationManagerMixin( object ):
         #  - CASCADE'd relations are added to `to_delete`
         #  - DENY'd relations raise a ValidationError
         for relation, removed_set in removed_relations.items():
-            fld = self._fields[ relation ]
-            related_name = getattr( fld, 'related_name', '' )
+            field = self._fields[ relation ]
+            related_name = getattr( field, 'related_name', '' )
             if not related_name:
                 # Skip this field; it's not managed by us.
                 continue
 
-            if isinstance( fld, ListField ):
-                fld = fld.field
+            if isinstance( field, ListField ):
+                field = field.field
 
-            delete_rule = self._meta['delete_rules'].get((fld.document_type, related_name), DO_NOTHING)
+            related_doc_type = getattr( field, 'document_type', None )
+            if related_doc_type:
+                delete_rule = self._meta['delete_rules'].get( (related_doc_type, related_name), DO_NOTHING )
 
-            if delete_rule == DO_NOTHING:
-                raise ValidationError( "Field `{0}` on {1} has no delete rule.".format(related_name, self))
-            if delete_rule == DENY:
-                # This object will be updated by other rules.
-                pass
-            elif delete_rule == CASCADE:
-                to_delete.update( removed_set )
-            elif delete_rule in ( NULLIFY, PULL ):
-                to_save.update( removed_set )
+                if delete_rule == DO_NOTHING:
+                    raise ValidationError( "Field `{0}` on {1} has no delete rule.".format(related_name, self))
+                if delete_rule == DENY:
+                    # This object will be updated by other rules.
+                    pass
+                elif delete_rule == CASCADE:
+                    to_delete.update( removed_set )
+                elif delete_rule in ( NULLIFY, PULL ):
+                    to_save.update( removed_set )
 
         return to_save, to_delete
 
