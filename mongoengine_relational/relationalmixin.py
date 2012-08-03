@@ -259,7 +259,7 @@ class RelationManagerMixin( object ):
         if not hasattr( self, '_memo_hasone' ):
             self._memo_hasone = {}
 
-        # Remember previously related models, so DbRefs returned by functions
+        # Remember previously related models, so DBRefs returned by functions
         # like `get_changes_for_relation` can  be substituted for the actual
         # (modified) Documents
         self._memo_related_docs = set()
@@ -342,13 +342,26 @@ class RelationManagerMixin( object ):
             # Remember a single reference
             if not field_name or field_name == name:
                 related_doc = self._data[ name ]
+
+                # A `GenericReferenceField` is stored as a dict containing a DBRef as `_ref`,
+                # and the Document class as `_cls`.
+                if isinstance( related_doc, dict ) and '_ref' in related_doc:
+                    related_doc = related_doc[ '_ref' ]
+
                 self._memoize_documents( related_doc )
                 self._memo_hasone[ name ] = related_doc
 
         for name in self._memo_hasmany.keys():
             # Remember a set of references
             if not field_name or field_name == name:
-                related_docs = set( self._data[ name ] )
+                related_docs = set()
+
+                for related_doc in set( self._data[ name ] ):
+                    if isinstance( related_doc, dict ) and '_ref' in related_doc:
+                        related_docs.add( related_doc[ '_ref' ] )
+                    else:
+                        related_docs.add( related_doc )
+
                 self._memoize_documents( related_docs )
                 self._memo_hasmany[ name ] = related_docs
 
@@ -381,6 +394,10 @@ class RelationManagerMixin( object ):
         data = self._data[ field_name ]
         field = self._fields[ field_name ]
         result = None
+
+        # A `GenericReferenceField` is stored as a dict containing a DBRef as `_ref`, and the Document class as `_cls`.
+        if isinstance( data, dict ) and '_ref' in data:
+            data = data[ '_ref' ]
 
         if isinstance( data, DBRef ):
             result = request.cache[ data ]
