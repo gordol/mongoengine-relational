@@ -487,7 +487,7 @@ class RelationManagerMixin( object ):
         result = super( RelationManagerMixin, self ).reload( max_depth=max_depth )
 
         # When doing an explicit reload, the relations as fetched from the database should be considered leading.
-        self.update_relations( rebuild=True )
+        self.update_relations()  # FIXME: add rebuild=True functionality?
 
         return result
 
@@ -743,7 +743,7 @@ class RelationManagerMixin( object ):
 
             if hasattr( field, 'related_name' ):
                 # Remove old value
-                # TODO: this was changed from `self._data[ field_name ]` to self[ field_name ];
+                # FIXME:TODO: this was changed from `self._data[ field_name ]` to self[ field_name ];
                 # verify this doesn't cause (way) too much queries..
 
 
