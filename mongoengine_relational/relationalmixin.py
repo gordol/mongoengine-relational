@@ -658,10 +658,11 @@ class RelationManagerMixin( object ):
         removed_relations = {}
 
         changed_relations = self.get_changed_relations()
-        for rel in changed_relations:
-            # Now find out the changes
-            added_relations, removed_relations[ rel ] = self.get_changes_for_relation( rel )
-            to_save.update( added_relations )
+        for relation in changed_relations:
+            if hasattr( self._fields[ relation ], 'related_name' ):
+                # This field is `managed`. Find out the changes.
+                added_relations, removed_relations[ relation ] = self.get_changes_for_relation( relation )
+                to_save.update( added_relations )
 
         # What should happen to removed relations depends on the delete rule 
         # they registered with us, which in MongoEngine currently is one of:
