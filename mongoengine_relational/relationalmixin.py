@@ -600,7 +600,7 @@ class RelationManagerMixin( object ):
 
     def get_changes_for_relation( self, field_name ):
         '''
-        Get the changeset (added and removed Documents)for a single relation.
+        Get the changeset (added and removed Documents) for a single relation.
 
         @param field_name:
         @return: a tuple containing two values. The first contains a set of added/new Documents;
@@ -614,9 +614,9 @@ class RelationManagerMixin( object ):
 
         if field_name in self._memo_hasone:
             prev_value = self._memo_hasone[ field_name ]
-            if prev_value:
+            if prev_value and not prev_value._equals( new_value ):
                 removed_docs.add( prev_value )
-            if new_value:
+            if new_value and not new_value._equals( prev_value ):
                 added_docs.add( new_value )
 
         elif field_name in self._memo_hasmany:
