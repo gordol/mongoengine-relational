@@ -564,10 +564,10 @@ class RelationManagerMixin( object ):
                     curr_value = added_docs.pop() if len( added_docs ) else None
                     prev_value = removed_docs.pop() if len( removed_docs ) else None
                     method( request=request, value=curr_value, prev_value=prev_value, field_name=name,
-                            added_docs=None, removed_docs=None )
+                        added_docs=None, removed_docs=None )
                 elif name in self._memo_hasmany:
                     method( request=request, value=None, prev_value=None, field_name=name,
-                            added_docs=added_docs, removed_docs=removed_docs )
+                        added_docs=added_docs, removed_docs=removed_docs )
 
         # Sync the memos with the current Document state
         self._memoize_related_fields( field_name )
@@ -614,9 +614,9 @@ class RelationManagerMixin( object ):
 
         if field_name in self._memo_hasone:
             prev_value = self._memo_hasone[ field_name ]
-            if prev_value and not prev_value._equals( new_value ):
+            if prev_value and not equals( prev_value, new_value ):
                 removed_docs.add( prev_value )
-            if new_value and not new_value._equals( prev_value ):
+            if new_value and not equals( prev_value, new_value ):
                 added_docs.add( new_value )
 
         elif field_name in self._memo_hasmany:
