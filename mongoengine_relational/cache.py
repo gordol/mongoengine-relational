@@ -14,6 +14,7 @@ class DocumentCache( object ):
         else:
             raise RuntimeError( 'A `DocumentCache` already exists; only one should be created per request.' )
 
+        self.request = request
         self._documents = {}
 
     def __iter__( self ):
@@ -22,13 +23,18 @@ class DocumentCache( object ):
     def __getitem__( self, id ):
         """Dictionary-style field access, return a field's value if present.
         """
+        # This proxies to `self.get`
         return self.get( id )
 
     def __setitem__(self, id, value):
         """Dictionary-style field access, set a field's value.
         """
         if isinstance( value, Document ):
+            # Set the `request` on the Document
+            value._request = self.request
+
             self._documents[ str( id ) ] = value
+
             return value
 
     def __delitem__( self, id ):
@@ -61,9 +67,11 @@ class DocumentCache( object ):
 
         if isinstance( documents, Document ):
             if documents.pk:
-                self._documents[ str( documents.pk ) ] = documents
+                self[ documents.pk ] = documents
         elif isinstance( documents, ( list, set, QuerySet ) ):
-            self._documents.update( ( str( obj.pk ), obj ) for obj in documents if obj.pk )
+            for obj in documents:
+                if obj.pk:
+                    self[ obj.pk ] = obj
 
     def remove( self, documents ):
         '''

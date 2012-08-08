@@ -146,6 +146,33 @@ class ReferenceField( ReferenceField ):
         if related_name and isinstance( related_name, basestring ):
             self.related_name = related_name
 
+    def __get__( self, instance, owner ):
+        """Descriptor to allow lazy dereferencing.
+        """
+        if instance is None:
+            # Document class being used rather than a document object
+            return self
+
+        # Get value from document instance if available
+        value = instance._data.get( self.name )
+        # Dereference DBRefs
+        if isinstance( value, DBRef ):
+            result = None
+
+            if hasattr( instance, '_request' ):
+                result = instance._fetch( instance._request, self.name )
+
+            if value and not result:
+                value = self.document_type._get_db().dereference(value)
+                if value is not None:
+                    result = self.document_type._from_son(value)
+                    instance._data[self.name] = result
+
+                    if hasattr( instance, '_request' ):
+                        instance._request.cache.add( result )
+
+        return super(ReferenceField, self).__get__(instance, owner)
+
 
 class GenericReferenceField( GenericReferenceField ):
     '''
@@ -162,6 +189,26 @@ class GenericReferenceField( GenericReferenceField ):
         super( GenericReferenceField, self ).__init__( **kwargs )
         if related_name and isinstance( related_name, basestring ):
             self.related_name = related_name
+
+    def __get__(self, instance, owner):
+        if instance is None:
+            return self
+
+        value = instance._data.get(self.name)
+        if isinstance(value, (dict, SON)):
+            result = None
+
+            if hasattr( instance, '_request' ):
+                result = instance._fetch( instance._request, self.name )
+
+            if value and not result:
+                result = self.dereference(value)
+                instance._data[self.name] = result
+
+                if hasattr( instance, '_request' ):
+                    instance._request.cache.add( result )
+
+        return super(GenericReferenceField, self).__get__(instance, owner)
 
 
 class ListField( ListField ):
@@ -227,6 +274,9 @@ class RelationManagerMixin( object ):
 
         self._initialised = False
         self._init_memo()
+
+        if 'request' in kwargs:
+            self._request = kwargs[ 'request' ]
 
         if self.pk:
             # If initial relations were set, add these to related models
@@ -385,7 +435,27 @@ class RelationManagerMixin( object ):
 
         @type request: pyramid.request.Request
         @param field_name:
-        @type field_name: basestring
+        @type field_name: string
+        @param
+        '''
+        result = self._fetch( request, field_name )
+
+        if not result:
+            result = getattr( self, field_name )
+
+            # Add fetched documents to the cache
+            # FIXME: shouldn't be necessary anymore, since ReferenceField.__get__ has also been overridden?
+            request.cache.add( result )
+
+        return result
+
+    def _fetch( self, request, field_name ):
+        '''
+        Get documents for a relation; retrieves documents from cache if possible.
+
+        @type request: pyramid.request.Request
+        @param field_name:
+        @type field_name: string
         @param
         '''
         if not isinstance( request, Request ):
@@ -408,12 +478,6 @@ class RelationManagerMixin( object ):
             if all( str(obj.id) in request.cache for obj in data ):
                 result = [ request.cache[ str(obj.id) ] for obj in data ]
                 self._data[ field_name ] = result
-
-        if not result:
-            result = getattr( self, field_name )
-
-            # Add fetched documents to the cache
-            request.cache.add( result )
 
         return result
 
@@ -443,11 +507,15 @@ class RelationManagerMixin( object ):
         if not is_new:
             self._on_change( request )
 
+        updated_relations = self.get_changed_relations()
         result = super( RelationManagerMixin, self ).save( safe=safe, force_insert=force_insert, validate=validate,
                 write_options=write_options, cascade=cascade, cascade_kwargs=cascade_kwargs, _refs=_refs )
 
         # Update relations after saving if it's a new Document; it should have an id now
         if is_new:
+            # Add this doc to the cache, now that it has an id
+            request.cache.add( self )
+
             self.update_relations()
 
             # Trigger `on_change_pk` if it's present. `pk` is a special case since it isn't a relation,
@@ -460,10 +528,10 @@ class RelationManagerMixin( object ):
 
         # Trigger `post_save` hook if it's defined on this Document
         if hasattr( self, 'post_save' ):
-            self.post_save( request )
+
+            self.post_save( request, updated_relations )
 
         return result
-
 
     def cascade_save(self, *args, **kwargs):
         '''
