@@ -528,7 +528,6 @@ class RelationManagerMixin( object ):
 
         # Trigger `post_save` hook if it's defined on this Document
         if hasattr( self, 'post_save' ):
-
             self.post_save( request, updated_relations )
 
         return result
@@ -617,15 +616,20 @@ class RelationManagerMixin( object ):
         '''
         changed_relations = self.get_changed_relations()
 
+        # The main `on_change` function should always be called, regardless of `field_name`!
         if hasattr( self, 'on_change' ):
             self.on_change( request=request, changed_relations=changed_relations )
 
         for name in changed_relations:
+            # Proceed if `field_name` is unset, or we've arrived at the correct `field_name`.
+            if field_name and field_name != name:
+                continue
+
             # Determine which callback to use. If a callback exists, invoke it if `field_name`
             # is not set, or `field_name` matches `field`0
             method = getattr( self, 'on_change_{}'.format( name ), None )
 
-            if callable( method ) and ( not field_name or name == field_name ):
+            if callable( method ):
                 added_docs, removed_docs = self.get_changes_for_relation( name )
 
                 if name in self._memo_hasone:
