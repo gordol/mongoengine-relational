@@ -559,16 +559,26 @@ class RelationManagerMixin( object ):
         return result
 
 
-    def delete( self, safe=False ):
+    def delete( self, request, safe=False ):
         '''
         Over `delete` to clear existing relations before performing the actual delete, to prevent
         lingering references to this document when it's gone.
         @param safe:
         @return:
         '''
+        # Trigger `pre_delete` hook if it's defined on this Document
+        if hasattr( self, 'pre_delete' ):
+            self.pre_delete( request )
+
         self.clear_relations()
 
-        return super( RelationManagerMixin, self ).delete( safe=safe )
+        result = super( RelationManagerMixin, self ).delete( safe=safe )
+
+        # Trigger `post_delete` hook if it's defined on this Document
+        if hasattr( self, 'post_delete' ):
+            self.post_delete( request )
+
+        return result
 
     def update( self, request, field_name=None, **kwargs ):
         '''
