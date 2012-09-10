@@ -348,8 +348,10 @@ class RelationManagerMixin( object ):
 
     def _supplement_delete_rules( self ):
         '''
-        Every field with a `related_name` should have a `delete_rule` registered (other than `DO_NOTHING`)
-        so we can keep relational integrity on delete. If this isn't the case, register an appropriate one.
+        Every field with a `related_name` should have a `delete_rule`
+        registered (other than `DO_NOTHING`) so we can keep relational
+        integrity on delete. If this isn't the case, register an appropriate
+        one.
         '''
         for field_name, field in self._fields.items():
             related_name = getattr( field, 'related_name', None )
@@ -370,7 +372,11 @@ class RelationManagerMixin( object ):
                 else:
                     new_rule = DENY
 
-                delete_rule = self._meta['delete_rules'].get( ( related_doc_type, related_name ), DO_NOTHING )
+                try:
+                    delete_rule = self._meta['delete_rules'].get( ( related_doc_type, related_name ), DO_NOTHING )
+                except AttributeError as e:
+                    delete_rule = DO_NOTHING
+
                 if delete_rule == DO_NOTHING:
                     self.register_delete_rule( related_doc_type, related_name, new_rule )
                     print(' ~~ REGISTERING delete rule `{0}` on `{3}.{4}` for relation `{1}.{2}`.'.format(
