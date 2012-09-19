@@ -3,10 +3,9 @@ from __future__ import unicode_literals
 
 import unittest
 
-from tests_mongoengine_relational.utils import FauxSave, Struct, get_object_id
+from tests_mongoengine_relational.utils import Struct, get_object_id
 
 from pyramid import testing
-from pyramid.response import Response
 from pyramid.request import Request
 
 from mongoengine_relational.relationalmixin import set_difference
@@ -34,13 +33,11 @@ class RelationsTestCase( unittest.TestCase ):
 
         d.node = Node()
 
-
     def tearDown( self ):
         testing.tearDown()
 
         # Clear our references
         self.data = None
-
 
     def test_documents_without_relations( self ):
         book = Book( id=get_object_id(), author=User( name='A' ), name='B' )
@@ -48,7 +45,6 @@ class RelationsTestCase( unittest.TestCase ):
 
         book.pages.append( page )
         book.author = User( name='B' )
-
 
     def test_baselist( self ):
         d = self.data
@@ -71,7 +67,6 @@ class RelationsTestCase( unittest.TestCase ):
         d.artis.animals.remove( d.tiger )
         d.artis.animals.insert( 0, d.tiger )
 
-
     def test_relation_initialization( self ):
         d = self.data
 
@@ -89,7 +84,6 @@ class RelationsTestCase( unittest.TestCase ):
         self.assertEqual( d.mammoth.zoo, d.artis )
         self.assertIn( d.mammoth, d.artis.animals )
 
-
     def test_memo_initialization_no_id( self ):
         d = self.data
 
@@ -102,7 +96,6 @@ class RelationsTestCase( unittest.TestCase ):
         self.assertEqual( None, d.bear._memo_hasone[ 'zoo' ], "no `id`, so no memo contents initially" )
         self.assertItemsEqual( [], d.blijdorp._memo_hasmany[ 'animals' ], "no `id`, so no memo contents initially" )
 
-
     def test_memo_initialization_with_id( self ):
         d = self.data
 
@@ -114,7 +107,6 @@ class RelationsTestCase( unittest.TestCase ):
         d.artis.save( request=self.request )
 
         self.assertIn( d.tiger, d.artis._memo_hasmany[ 'animals' ], "'tiger' should be in 'zoo's memo" )
-
 
     def test_update_hasmany( self ):
         d = self.data
@@ -165,7 +157,6 @@ class RelationsTestCase( unittest.TestCase ):
         self.assertFalse( d.bear.zoo, d.blijdorp )
         self.assertNotIn( d.bear, d.blijdorp.animals )
 
-
     def test_update_hasone( self ):
         d = self.data
         
@@ -196,7 +187,6 @@ class RelationsTestCase( unittest.TestCase ):
         self.assertEqual( office, d.blijdorp.office )
         self.assertNotEqual( office, d.artis.office )
 
-
     def test_get_changed_relations( self ):
         d = self.data
 
@@ -205,7 +195,6 @@ class RelationsTestCase( unittest.TestCase ):
         self.assertEqual( 0, len( d.tiger.get_changed_relations() ) )
         d.tiger.zoo = d.blijdorp
         self.assertIn( 'zoo', d.tiger.get_changed_relations() )
-
 
     def test_update_managed_relations( self ):
         d = self.data
@@ -227,7 +216,6 @@ class RelationsTestCase( unittest.TestCase ):
         except ValidationError as e:
             print( e, e.errors )
             raise e
-
 
     def test_document_dbref_equality( self ):
         # If an document has been fetched from the database, it's relations can just contain DbRefs,
@@ -282,7 +270,6 @@ class RelationsTestCase( unittest.TestCase ):
 
         self.assertFalse( zoo.get_changed_relations() )
 
-
     def test_delete( self ):
         d = self.data
 
@@ -307,7 +294,6 @@ class RelationsTestCase( unittest.TestCase ):
 
         print( changes )
 
-
     def test_memoize_documents( self ):
         pass
 
@@ -322,7 +308,4 @@ class RelationsTestCase( unittest.TestCase ):
         # Updating a relation should memoize it, and thus remove it from `get_changed_relations`
         d.artis.update( self.request, 'animals' )
         self.assertNotIn( 'animals', d.artis.get_changed_relations() )
-
-
-
 
