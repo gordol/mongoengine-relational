@@ -571,11 +571,14 @@ class RelationManagerMixin( object ):
 
     def delete( self, request, safe=False ):
         '''
-        Over `delete` to clear existing relations before performing the actual delete, to prevent
+        Override `delete` to clear existing relations before performing the actual delete, to prevent
         lingering references to this document when it's gone.
         @param safe:
         @return:
         '''
+        if not isinstance( request, Request ):
+            raise ValueError( 'request={} should be an instance of `pyramid.request.Request`'.format( request ) )
+
         # Trigger `pre_delete` hook if it's defined on this Document
         if hasattr( self, 'pre_delete' ):
             self.pre_delete( request )
@@ -603,6 +606,10 @@ class RelationManagerMixin( object ):
         if not isinstance( request, Request ):
             raise ValueError( 'request={} should be an instance of `pyramid.request.Request`'.format( request ) )
 
+        # Trigger `pre_update` hook if it's defined on this Document
+        if hasattr( self, 'pre_update' ):
+            self.pre_update( request )
+
         if field_name:
             # Add `field_name` to kwargs, so it will be passed to the `update` call
             kwargs[ 'set__{}'.format( field_name ) ] = self[ field_name ]
@@ -611,6 +618,10 @@ class RelationManagerMixin( object ):
 
         if field_name:
             self._on_change( request, field_name )
+
+        # Trigger `post_update` hook if it's defined on this Document
+        if hasattr( self, 'post_update' ):
+            self.post_update( request )
 
         return result
 
