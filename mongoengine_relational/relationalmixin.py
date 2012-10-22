@@ -8,10 +8,6 @@ from mongoengine import base
 from mongoengine.queryset import CASCADE, DO_NOTHING, NULLIFY, DENY, PULL
 from bson import DBRef, ObjectId, SON
 
-from kitchen.text.converters import getwriter
-import sys
-UTF8Writer = getwriter('utf8')
-sys.stdout = UTF8Writer(sys.stdout)
 
 class BaseList( list ):
     '''
@@ -675,12 +671,12 @@ class RelationManagerMixin( object ):
         # Sync the memos with the current Document state
         self._memoize_related_fields( field_name )
 
-    def get_changed_relations( self ): 
-        ''' 
+    def get_changed_relations( self ):
+        '''
         Get a set listing the names of fields on this document that have been
         modified since the last call to `_memoize_related_fields` (which is
         called from `_on_change`, which is called from `save`).  
-        ''' 
+        '''
         changed_fields = set()
 
         # For hasone, simply compare the values.
