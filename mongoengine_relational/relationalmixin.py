@@ -384,7 +384,7 @@ class RelationManagerMixin( object ):
                 if delete_rule == DO_NOTHING:
                     self.register_delete_rule( related_doc_type, related_name, new_rule )
                     print(' ~~ REGISTERING delete rule `{0}` on `{3}.{4}` for relation `{1}.{2}`.'.format(
-                        'PULL' if new_rule == 4 else 'DENY' if new_rule == 3 else 'NULLIFY', self._class_name, field_name, related_doc_type and related_doc_type._class_name, related_name) )
+                        'PULL' if new_rule == 4 else 'DENY' if new_rule == 3 else 'NULLIFY', self._class_name, field_name, related_doc_type and related_doc_type._class_name, related_name).encode("utf-8") )
 
     def _memoize_related_fields( self, field_name=None ):
         '''
@@ -857,10 +857,10 @@ class RelationManagerMixin( object ):
                     if isinstance( related_data, ( list, tuple ) ):
                         if self in related_data:
                             related_doc[ field.related_name ].remove( self )
-                            print( 'Removed `{0}` from `{1}` of {2} `{3}`'.format( self, field.related_name, related_doc._class_name, related_doc ) )
+                            print( 'Removed `{0}` from `{1}` of {2} `{3}`'.format( self, field.related_name, related_doc._class_name, related_doc ).encode("utf-8") )
                     elif related_data == self:
                         related_doc._data[ field.related_name ] = None
-                        print( 'Cleared `{0}` of {1}'.format( field.related_name, related_doc ) )
+                        print( 'Cleared `{0}` of {1}'.format( field.related_name, related_doc ).encode("utf-8") )
 
                 # Set new value
                 related_doc = new_value
@@ -872,10 +872,10 @@ class RelationManagerMixin( object ):
                     if isinstance( related_data, ( list, tuple ) ):
                         if self not in related_data:
                             related_doc[ field.related_name ].append( self )
-                            print( 'Appended `{0}` to `{1}` of {2} `{3}`'.format( self, field.related_name, related_doc._class_name, related_doc ) )
+                            print( 'Appended `{0}` to `{1}` of {2} `{3}`'.format( self, field.related_name, related_doc._class_name, related_doc ).encode("utf-8") )
                     elif related_data != self:
                         related_doc._data[ field.related_name ] = self
-                        print( 'Set `{0}` of `{1}` to `{2}`'.format( field.related_name, related_doc, self ) )
+                        print( 'Set `{0}` of `{1}` to `{2}`'.format( field.related_name, related_doc, self ).encode("utf-8") )
 
             self._data[ field_name ] = new_value
 
