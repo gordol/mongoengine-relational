@@ -198,21 +198,21 @@ class GenericReferenceField( GenericReferenceField ):
         if instance is None:
             return self
 
-        value = instance._data.get(self.name)
-        if isinstance(value, (dict, SON)):
+        value = instance._data.get( self.name )
+        if isinstance( value, (dict, SON) ):
             result = None
 
             if hasattr( instance, '_request' ):
                 result = instance._fetch( instance._request, self.name )
 
             if value and not result:
-                result = self.dereference(value)
+                result = self.dereference( value )
                 instance._data[self.name] = result
 
                 if hasattr( instance, '_request' ):
                     instance._request.cache.add( result )
 
-        return super(GenericReferenceField, self).__get__(instance, owner)
+        return super( GenericReferenceField, self ).__get__( instance, owner )
 
 
 class ListField( ListField ):
@@ -230,6 +230,34 @@ class ListField( ListField ):
         super(ListField, self).__init__(field=field, **kwargs)
         if related_name and isinstance(related_name, basestring):
             self.related_name = related_name
+
+    def __get__(self, instance, owner):
+        """Descriptor to automatically dereference references.
+        """
+        if instance is None:
+            # Document class being used rather than a document object
+            return self
+
+        # TODO: try to fetch everything from the cache?
+
+        # Make `ComplexBaseField.__get__` do it's thing
+        value = super(ListField, self).__get__(instance, owner)
+
+        # If we have a list of documents, and we can access the cache: use any document we can find from the cache.
+        # Otherwise, add it to the cache.
+        if value and isinstance( self.field, ( GenericReferenceField, ReferenceField ) ) and hasattr( instance, '_request' ):
+            results = []
+            for document in value:
+                if str( document.id ) in instance._request.cache:
+                    document = instance._request.cache[ str( document.id ) ]
+                else:
+                    instance._request.cache.add( document )
+
+                results.append( document )
+
+            value = results
+
+        return value
 
 
 class RelationManagerMixin( object ):
@@ -485,8 +513,8 @@ class RelationManagerMixin( object ):
                 self._data[ field_name ] = result
         elif isinstance( data, list ) and hasattr( field, 'field' ):
             # Only fetch documents from our document cache if all data items can be found
-            if all( str(obj.id) in request.cache for obj in data ):
-                result = [ request.cache[ str(obj.id) ] for obj in data ]
+            if all( str( obj.id ) in request.cache for obj in data ):
+                result = [ request.cache[ str( obj.id ) ] for obj in data ]
                 self._data[ field_name ] = result
 
         return result
