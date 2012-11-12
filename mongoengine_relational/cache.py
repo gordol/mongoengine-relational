@@ -66,11 +66,11 @@ class DocumentCache( object ):
             return
 
         if isinstance( documents, Document ):
-            if documents.pk:
+            if documents.pk and not documents in self:
                 self[ documents.pk ] = documents
         elif isinstance( documents, ( list, set, QuerySet ) ):
             for obj in documents:
-                if obj.pk:
+                if obj.pk and not obj in self:
                     self[ obj.pk ] = obj
 
     def remove( self, documents ):

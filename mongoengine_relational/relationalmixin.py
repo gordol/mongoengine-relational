@@ -23,7 +23,7 @@ class BaseList( list ):
     _observer = None
     _name = None
 
-    def __init__(self, list_items, instance, name):
+    def __init__( self, list_items, instance, name ):
         self._instance = instance
         self._name = name
         if hasattr( self._instance, 'add_hasmany' ) and hasattr( self._instance, 'remove_hasmany' ):
@@ -31,7 +31,7 @@ class BaseList( list ):
 
         super( BaseList, self ).__init__( list_items )
 
-    def __setitem__(self, key, element ):
+    def __setitem__( self, key, element ):
         self._mark_as_changed()
 
         try:
@@ -41,7 +41,7 @@ class BaseList( list ):
         else:
             # Only remove when there was no KeyError
             if self._observer:
-                self._observer.remove_hasmany( self._name, key, old_element )
+                self._observer.remove_hasmany( self._name, old_element )
 
         # Always set the element.
         if self._observer:
@@ -231,31 +231,28 @@ class ListField( ListField ):
         if related_name and isinstance(related_name, basestring):
             self.related_name = related_name
 
-    def __get__(self, instance, owner):
+    def __get__( self, instance, owner ):
         """Descriptor to automatically dereference references.
         """
         if instance is None:
             # Document class being used rather than a document object
             return self
 
-        # TODO: try to fetch everything from the cache?
+        # TODO: try to fetch everything from the cache before calling the super?
 
         # Make `ComplexBaseField.__get__` do it's thing
-        value = super(ListField, self).__get__(instance, owner)
+        value = super( ListField, self ).__get__( instance, owner )
 
         # If we have a list of documents, and we can access the cache: use any document we can find from the cache.
         # Otherwise, add it to the cache.
         if value and isinstance( self.field, ( GenericReferenceField, ReferenceField ) ) and hasattr( instance, '_request' ):
-            results = []
-            for document in value:
-                if str( document.id ) in instance._request.cache:
-                    document = instance._request.cache[ str( document.id ) ]
+            for index, document in enumerate( value ):
+                if document in instance._request.cache:
+                    document = instance._request.cache[ document ]
+                    # Be careful not to trigger `BaseList` append/remove again, since this'll get us an infinite loop
+                    super( BaseList, value ).__setitem__( index, document )
                 else:
                     instance._request.cache.add( document )
-
-                results.append( document )
-
-            value = results
 
         return value
 
@@ -513,8 +510,8 @@ class RelationManagerMixin( object ):
                 self._data[ field_name ] = result
         elif isinstance( data, list ) and hasattr( field, 'field' ):
             # Only fetch documents from our document cache if all data items can be found
-            if all( str( obj.id ) in request.cache for obj in data ):
-                result = [ request.cache[ str( obj.id ) ] for obj in data ]
+            if all( obj in request.cache for obj in data ):
+                result = [ request.cache[ obj ] for obj in data ]
                 self._data[ field_name ] = result
 
         return result
@@ -707,7 +704,7 @@ class RelationManagerMixin( object ):
         ''' 
         Get a set listing the names of fields on this document that have been
         modified since the last call to `_memoize_related_fields` (which is
-        called from `_on_change`, which is called from `save`).  
+        called from `_on_change`, which is called from `save`).
         ''' 
         changed_fields = set()
 
@@ -875,16 +872,12 @@ class RelationManagerMixin( object ):
 
             if hasattr( field, 'related_name' ):
                 # Remove old value
-                # FIXME:TODO: this was changed from `self._data[ field_name ]` to self[ field_name ];
-                # verify this doesn't cause (way) too much queries..
-
-
                 if related_doc and isinstance( related_doc, RelationManagerMixin ):
                     related_data = getattr( related_doc, field.related_name )
 
                     if isinstance( related_data, ( list, tuple ) ):
                         if self in related_data:
-                            related_doc[ field.related_name ].remove( self )
+                            related_data.remove( self )
                             print( 'Removed `{0}` from `{1}` of {2} `{3}`'.format( self, field.related_name, related_doc._class_name, related_doc ).encode("utf-8") )
                     elif related_data == self:
                         related_doc._data[ field.related_name ] = None
@@ -899,7 +892,7 @@ class RelationManagerMixin( object ):
 
                     if isinstance( related_data, ( list, tuple ) ):
                         if self not in related_data:
-                            related_doc[ field.related_name ].append( self )
+                            related_data.append( self )
                             print( 'Appended `{0}` to `{1}` of {2} `{3}`'.format( self, field.related_name, related_doc._class_name, related_doc ).encode("utf-8") )
                     elif related_data != self:
                         related_doc._data[ field.related_name ] = self
