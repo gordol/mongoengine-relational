@@ -556,7 +556,7 @@ class RelationManagerMixin( object ):
             # Trigger `on_change_pk` if it's present. `pk` is a special case since it isn't a relation,
             # so it won't be triggered through `_on_change`.
             if hasattr( self, 'on_change_pk' ):
-                self.on_change_pk( value=self.pk, prev_value=None, request=request, field_name=self._meta[ 'id_field' ] )
+                self.on_change_pk( request=request, value=self.pk, prev_value=None, field_name=self._meta[ 'id_field' ] )
 
             # Trigger `on_change*` callbacks for changed relations, so we can set new privileges
             self._on_change( request )
