@@ -535,7 +535,7 @@ class RelationManagerMixin( object ):
         is_new = self.pk is None
 
         # Trigger `pre_save` hook if it's defined on this Document
-        if hasattr( self, 'pre_save' ):
+        if hasattr( self, 'pre_save' ) and callable( self.pre_save ):
             self.pre_save( request )
 
         # Trigger `on_change*` callbacks for changed relations, so we can set new privileges
@@ -555,14 +555,14 @@ class RelationManagerMixin( object ):
 
             # Trigger `on_change_pk` if it's present. `pk` is a special case since it isn't a relation,
             # so it won't be triggered through `_on_change`.
-            if hasattr( self, 'on_change_pk' ):
+            if hasattr( self, 'on_change_pk' ) and callable( self.on_change_pk ):
                 self.on_change_pk( request=request, value=self.pk, prev_value=None, field_name=self._meta[ 'id_field' ] )
 
             # Trigger `on_change*` callbacks for changed relations, so we can set new privileges
             self._on_change( request )
 
         # Trigger `post_save` hook if it's defined on this Document
-        if hasattr( self, 'post_save' ):
+        if hasattr( self, 'post_save' ) and callable( self.post_save ):
             self.post_save( request, updated_relations )
 
         return result
@@ -605,7 +605,7 @@ class RelationManagerMixin( object ):
             raise ValueError( 'request={} should be an instance of `pyramid.request.Request`'.format( request ) )
 
         # Trigger `pre_delete` hook if it's defined on this Document
-        if hasattr( self, 'pre_delete' ):
+        if hasattr( self, 'pre_delete' ) and callable( self.pre_delete ):
             self.pre_delete( request )
 
         self.clear_relations()
@@ -613,7 +613,7 @@ class RelationManagerMixin( object ):
         result = super( RelationManagerMixin, self ).delete( safe=safe )
 
         # Trigger `post_delete` hook if it's defined on this Document
-        if hasattr( self, 'post_delete' ):
+        if hasattr( self, 'post_delete' ) and callable( self.post_delete ):
             self.post_delete( request )
 
         return result
@@ -632,7 +632,7 @@ class RelationManagerMixin( object ):
             raise ValueError( 'request={} should be an instance of `pyramid.request.Request`'.format( request ) )
 
         # Trigger `pre_update` hook if it's defined on this Document
-        if hasattr( self, 'pre_update' ):
+        if hasattr( self, 'pre_update' ) and callable( self.pre_update ):
             self.pre_update( request )
 
         if field_name:
@@ -645,7 +645,7 @@ class RelationManagerMixin( object ):
             self._on_change( request, field_name )
 
         # Trigger `post_update` hook if it's defined on this Document
-        if hasattr( self, 'post_update' ):
+        if hasattr( self, 'post_update' ) and callable( self.post_update ):
             self.post_update( request )
 
         return result
@@ -673,7 +673,7 @@ class RelationManagerMixin( object ):
         changed_relations = self.get_changed_relations()
 
         # The main `on_change` function should always be called, regardless of `field_name`!
-        if hasattr( self, 'on_change' ):
+        if hasattr( self, 'on_change' ) and callable( self.on_change ):
             self.on_change( request=request, changed_relations=changed_relations )
 
         for name in changed_relations:
