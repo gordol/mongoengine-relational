@@ -30,10 +30,10 @@ class DocumentCache( object ):
         """Dictionary-style field access, set a field's value.
         """
         if isinstance( value, Document ):
-            # Set the `request` on the Document
-            value._request = self.request
-
             self._documents[ str( id ) ] = value
+
+            # Set the `request` on the Document, so it can take advantage of the cache itself
+            value._request = self.request
 
             return value
 
@@ -68,10 +68,16 @@ class DocumentCache( object ):
         if isinstance( documents, Document ):
             if documents.pk and not documents in self:
                 self[ documents.pk ] = documents
+
+            # Set the `request` on the Document, so it can take advantage of the cache itself
+            documents._request = self.request
         elif isinstance( documents, ( list, set, QuerySet ) ):
             for obj in documents:
                 if obj.pk and not obj in self:
                     self[ obj.pk ] = obj
+
+                # Set the `request` on the Document, so it can take advantage of the cache itself
+                obj._request = self.request
 
     def remove( self, documents ):
         '''

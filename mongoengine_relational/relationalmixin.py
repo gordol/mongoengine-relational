@@ -4,6 +4,7 @@ from __future__ import unicode_literals
 from pyramid.request import Request
 
 from mongoengine import Document, GenericReferenceField, ReferenceField, ListField, ValidationError
+from mongoengine.base import ComplexBaseField
 from mongoengine import base
 from mongoengine.queryset import CASCADE, DO_NOTHING, NULLIFY, DENY, PULL
 from bson import DBRef, ObjectId, SON
@@ -167,15 +168,15 @@ class ReferenceField( ReferenceField ):
                 result = instance._fetch( instance._request, self.name )
 
             if value and not result:
-                value = self.document_type._get_db().dereference(value)
+                value = self.document_type._get_db().dereference( value )
                 if value is not None:
-                    result = self.document_type._from_son(value)
+                    result = self.document_type._from_son( value )
                     instance._data[self.name] = result
 
                     if hasattr( instance, '_request' ):
                         instance._request.cache.add( result )
 
-        return super(ReferenceField, self).__get__(instance, owner)
+        return super( ReferenceField, self ).__get__( instance, owner )
 
 
 class GenericReferenceField( GenericReferenceField ):
@@ -238,21 +239,52 @@ class ListField( ListField ):
             # Document class being used rather than a document object
             return self
 
-        # TODO: try to fetch everything from the cache before calling the super?
+        # We only case about lists that contain documents/references here.
+        # Code is adapted from `ComplexBaseField.__get__`.
+        if isinstance( self.field, ( GenericReferenceField, ReferenceField ) ):
+            # TODO: not sure when this code actually gets called... leaving it in for now.
+            if not self._dereference and instance._initialised:
+                instance._data[self.name] = self._dereference(
+                    instance._data.get(self.name), max_depth=1, instance=instance,
+                    name=self.name
+                )
 
-        # Make `ComplexBaseField.__get__` do it's thing
-        value = super( ListField, self ).__get__( instance, owner )
+            # Skip `ComplexBaseField`; retrieve document data from `BaseField`
+            value = super( ComplexBaseField, self ).__get__( instance, owner )
 
-        # If we have a list of documents, and we can access the cache: use any document we can find from the cache.
-        # Otherwise, add it to the cache.
-        if value and isinstance( self.field, ( GenericReferenceField, ReferenceField ) ) and hasattr( instance, '_request' ):
-            for index, document in enumerate( value ):
-                if document in instance._request.cache:
-                    document = instance._request.cache[ document ]
-                    # Be careful not to trigger `BaseList` append/remove again, since this'll get us an infinite loop
-                    super( BaseList, value ).__setitem__( index, document )
+            # Convert lists to BaseList so we can watch for any changes on them
+            if isinstance(value, (list, tuple)) and not isinstance( value, BaseList ):
+                value = BaseList( value, instance, self.name )
+                instance._data[ self.name ] = value
+
+            # If we have raw values, obtain documents; either from cache, or by dereferencing
+            if instance._initialised and isinstance( value, BaseList ) and not value._dereferenced:
+                # If we can find all objects in the cache, use it. Otherwise, retrieve all of them.
+                if hasattr( instance, '_request' ) and all( obj in instance._request.cache for obj in value ):
+                    for index, object in enumerate( value ):
+                        super( BaseList, value ).__setitem__( index, instance._request.cache[ object ] )
                 else:
-                    instance._request.cache.add( document )
+                    value = self._dereference(
+                        value, max_depth=1, instance=instance, name=self.name
+                    )
+                    value._dereferenced = True
+
+                    # For the list of retrieved documents, replace already known entries with cached documents.
+                    # Add others to the cache.
+                    if hasattr( instance, '_request' ):
+                        for index, document in enumerate( value ):
+                            if document in instance._request.cache:
+                                document = instance._request.cache[ document ]
+                                # Be careful not to trigger `BaseList` append/remove again,
+                                # since this'll get us an infinite loop
+                                super( BaseList, value ).__setitem__( index, document )
+                            else:
+                                instance._request.cache.add( document )
+
+                instance._data[self.name] = value
+        else:
+            # If we're not dealing with documents/references, just call the super
+            value = super( ListField, self ).__get__( instance, owner )
 
         return value
 
