@@ -62,15 +62,13 @@ class DocumentCache( object ):
         @param documents:
         @type documents: Document or list or set or QuerySet
         '''
-        if not documents:
-            return
-
         if isinstance( documents, Document ):
             if documents.pk and not documents in self:
                 self[ documents.pk ] = documents
 
             # Set the `request` on the Document, so it can take advantage of the cache itself
             documents._request = self.request
+
         elif isinstance( documents, ( list, set, QuerySet ) ):
             for obj in documents:
                 if obj.pk and not obj in self:
@@ -86,9 +84,6 @@ class DocumentCache( object ):
         @param documents:
         @type documents: DBRef or Document or ObjectId or list or set or QuerySet
         '''
-        if not documents:
-            return
-
         if isinstance( documents, ( DBRef, Document ) ):
             if documents.id:
                 del self._documents[ str( documents.id ) ]
