@@ -2,9 +2,8 @@ from __future__ import print_function
 from __future__ import unicode_literals
 
 from mongoengine import Document
-from mongoengine.base import ObjectId
 from mongoengine.queryset import QuerySet
-from bson import DBRef
+from bson import DBRef, ObjectId
 
 
 class DocumentCache( object ):
