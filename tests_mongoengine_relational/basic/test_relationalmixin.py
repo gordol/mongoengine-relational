@@ -18,6 +18,10 @@ class RelationsTestCase( unittest.TestCase ):
     def setUp( self ):
         # Setup application/request config
         self.request = Request.blank( '/api/v1/' )
+
+        # Instantiate a DocumentCache; it will attach itself to `request.cache`.
+        DocumentCache( self.request )
+
         self.config = testing.setUp( request=self.request )
 
         # Setup data
