@@ -115,21 +115,21 @@ class RelationsTestCase( unittest.TestCase ):
     def test_update_hasmany( self ):
         d = self.data
 
-        print( 'artis.get_changed_relations: ', d.artis.get_changed_relations() )
-        self.assertEqual( 1, len( d.artis.get_changed_relations() ) )
+        print( 'artis.get_changed_fields: ', d.artis.get_changed_fields() )
+        self.assertEqual( 1, len( d.artis.get_changed_fields() ) )
         d.artis.save( request=self.request )
-        self.assertEqual( 0, len( d.artis.get_changed_relations() ) )
+        self.assertEqual( 0, len( d.artis.get_changed_fields() ) )
 
         # put 'bear' in 'artis'
         d.artis.animals.append( d.bear )
 
-        self.assertEqual( 1, len( d.artis.get_changed_relations() ) )
+        self.assertEqual( 1, len( d.artis.get_changed_fields() ) )
         self.assertEqual( d.bear.zoo, d.artis )
 
         # after saving 'artis', the 'zoo' on 'bear' should be set to 'artis'
         d.artis.save( request=self.request )
 
-        self.assertEqual( 0, len( d.artis.get_changed_relations() ) )
+        self.assertEqual( 0, len( d.artis.get_changed_fields() ) )
         self.assertEqual( d.bear.zoo, d.artis )
 
         # move the 'bear' to 'blijdorp'. It should be removed from 'artis'
@@ -173,7 +173,7 @@ class RelationsTestCase( unittest.TestCase ):
 
         d.artis.save( request=self.request )
 
-        self.assertEqual( 0, len( d.artis.get_changed_relations() ) )
+        self.assertEqual( 0, len( d.artis.get_changed_fields() ) )
         self.assertEqual( office.tenant, d.artis )
 
         # the office decides it'd rather have 'zoo' as a tenant; 'artis' are making a mess of it.
@@ -194,11 +194,11 @@ class RelationsTestCase( unittest.TestCase ):
     def test_get_changed_relations( self ):
         d = self.data
 
-        self.assertIn( 'zoo', d.bear.get_changed_relations() )
+        self.assertIn( 'zoo', d.bear.get_changed_fields() )
 
-        self.assertEqual( 0, len( d.tiger.get_changed_relations() ) )
+        self.assertEqual( 0, len( d.tiger.get_changed_fields() ) )
         d.tiger.zoo = d.blijdorp
-        self.assertIn( 'zoo', d.tiger.get_changed_relations() )
+        self.assertIn( 'zoo', d.tiger.get_changed_fields() )
 
     def test_update_managed_relations( self ):
         d = self.data
@@ -263,7 +263,7 @@ class RelationsTestCase( unittest.TestCase ):
         # Moving on; substituting DbRef with a Document (dereferencing) shouldn't mark a relation as changed
         zoo = Zoo( id=get_object_id(), name="Dierenpark Emmen", animals=[ lion, giraffe ], office=office )
 
-        self.assertFalse( zoo.get_changed_relations() )
+        self.assertFalse( zoo.get_changed_fields() )
 
         # dereference a `hasmany`; use `_data` to avoid dereferencing
         zoo._data[ 'animals' ].remove( lion )
@@ -272,7 +272,7 @@ class RelationsTestCase( unittest.TestCase ):
         # dereference a `hasone`
         zoo._data[ 'office' ] = office_doc
 
-        self.assertFalse( zoo.get_changed_relations() )
+        self.assertFalse( zoo.get_changed_fields() )
 
     def test_delete( self ):
         d = self.data
@@ -294,7 +294,9 @@ class RelationsTestCase( unittest.TestCase ):
         self.assertEqual( d.tiger.zoo, None )
         self.assertEqual( office.tenant, None )
 
-        changes = d.artis.get_changed_relations()
+        d.artis.name = 'New Artis'
+
+        changes = d.artis.get_changed_fields()
 
         print( changes )
 
@@ -307,9 +309,9 @@ class RelationsTestCase( unittest.TestCase ):
     def test_update( self ):
         d = self.data
 
-        self.assertIn( 'animals', d.artis.get_changed_relations() )
+        self.assertIn( 'animals', d.artis.get_changed_fields() )
 
         # Updating a relation should memoize it, and thus remove it from `get_changed_relations`
         d.artis.update( self.request, 'animals' )
-        self.assertNotIn( 'animals', d.artis.get_changed_relations() )
+        self.assertNotIn( 'animals', d.artis.get_changed_fields() )
 

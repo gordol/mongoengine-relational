@@ -347,7 +347,7 @@ class RelationManagerMixin( object ):
 
         if self.pk:
             # Sync the memos with the current Document state
-            self._memoize_related_fields()
+            self._memoize_fields()
 
     def __setattr__( self, key, value ):
         '''
@@ -365,10 +365,9 @@ class RelationManagerMixin( object ):
         '''
         Memoize reference fields to monitor changes.
         '''
-        if not hasattr( self, '_memo_hasmany' ):
-            self._memo_hasmany = {}
-        if not hasattr( self, '_memo_hasone' ):
-            self._memo_hasone = {}
+        self._memo_hasone = {}
+        self._memo_hasmany = {}
+        self._memo_simple = {}
 
         # Remember previously related models, so DBRefs returned by functions
         # like `get_changes_for_relation` can  be substituted for the actual
@@ -387,6 +386,7 @@ class RelationManagerMixin( object ):
                 else:
                     related_doc_type = None
             else:
+                self._memo_simple[ name ] = None
                 related_doc_type = None
 
             # If 'field' is relational and has a 'related_name', check whether the field
@@ -443,9 +443,9 @@ class RelationManagerMixin( object ):
                     print(' ~~ REGISTERING delete rule `{0}` on `{3}.{4}` for relation `{1}.{2}`.'.format(
                         'PULL' if new_rule == 4 else 'DENY' if new_rule == 3 else 'NULLIFY', self._class_name, field_name, related_doc_type and related_doc_type._class_name, related_name).encode("utf-8") )
 
-    def _memoize_related_fields( self, field_name=None ):
+    def _memoize_fields( self, field_name=None ):
         '''
-        Creates a copy of the items in our managed fields so we can compare changes.
+        Creates a copy of the items in our fields so we can compare changes.
 
         @param field_name: limit the fields that are memoized to the given field.
             If not specified, all fields are memoized.
@@ -482,6 +482,10 @@ class RelationManagerMixin( object ):
                 self._memoize_documents( related_docs )
                 self._memo_hasmany[ name ] = related_docs
 
+        for name in self._memo_simple.keys():
+            if not field_name or field_name == name:
+                self._memo_simple[ name ] = self._data[ name ]
+
     def _memoize_documents( self, docs ):
         '''
         Store the given document(s) in a memo
@@ -511,7 +515,6 @@ class RelationManagerMixin( object ):
             result = getattr( self, field_name )
 
             # Add fetched documents to the cache
-            # FIXME: shouldn't be necessary anymore, since ReferenceField.__get__ has also been overridden?
             request.cache.add( result )
 
         return result
@@ -574,7 +577,7 @@ class RelationManagerMixin( object ):
         if not is_new:
             self._on_change( request )
 
-        updated_relations = self.get_changed_relations()
+        updated_fields = self.get_changed_fields()
         result = super( RelationManagerMixin, self ).save( safe=safe, force_insert=force_insert, validate=validate,
                 write_options=write_options, cascade=cascade, cascade_kwargs=cascade_kwargs, _refs=_refs )
 
@@ -595,7 +598,7 @@ class RelationManagerMixin( object ):
 
         # Trigger `post_save` hook if it's defined on this Document
         if hasattr( self, 'post_save' ) and callable( self.post_save ):
-            self.post_save( request, updated_relations )
+            self.post_save( request, updated_fields )
 
         return result
 
@@ -702,23 +705,23 @@ class RelationManagerMixin( object ):
             the given field. If not specified, all fields are processed.
         @type field_name: string
         '''
-        changed_relations = self.get_changed_relations()
+        changed_fields = self.get_changed_fields()
 
         # The main `on_change` function should always be called, regardless of `field_name`!
         if hasattr( self, 'on_change' ) and callable( self.on_change ):
-            self.on_change( request=request, changed_relations=changed_relations )
+            self.on_change( request=request, changed_fields=changed_fields )
 
-        for name in changed_relations:
+        for name in changed_fields:
             # Proceed if `field_name` is unset, or we've arrived at the correct `field_name`.
             if field_name and field_name != name:
                 continue
 
             # Determine which callback to use. If a callback exists, invoke it if `field_name`
-            # is not set, or `field_name` matches `field`0
+            # is not set, or `field_name` matches `field`
             method = getattr( self, 'on_change_{}'.format( name ), None )
 
             if callable( method ):
-                added_docs, removed_docs = self.get_changes_for_relation( name )
+                added_docs, removed_docs = self.get_changes_for_field( name )
 
                 if name in self._memo_hasone:
                     curr_value = added_docs.pop() if len( added_docs ) else None
@@ -730,12 +733,12 @@ class RelationManagerMixin( object ):
                         added_docs=added_docs, removed_docs=removed_docs )
 
         # Sync the memos with the current Document state
-        self._memoize_related_fields( field_name )
+        self._memoize_fields( field_name )
 
-    def get_changed_relations( self ): 
+    def get_changed_fields( self ):
         ''' 
         Get a set listing the names of fields on this document that have been
-        modified since the last call to `_memoize_related_fields` (which is
+        modified since the last call to `_memoize_fields` (which is
         called from `_on_change`, which is called from `save`).
         ''' 
         changed_fields = set()
@@ -756,9 +759,13 @@ class RelationManagerMixin( object ):
                     len( set_difference( current_related_docs, previous_related_docs ) ) > 0:
                 changed_fields.add( field_name )
 
+        for field_name, previous_value in self._memo_simple.iteritems():
+            if previous_value != self._data[ field_name ]:
+                changed_fields.add( field_name )
+
         return changed_fields
 
-    def get_changes_for_relation( self, field_name ):
+    def get_changes_for_field( self, field_name ):
         '''
         Get the changeset (added and removed Documents) for a single relation.
 
@@ -772,7 +779,11 @@ class RelationManagerMixin( object ):
         added_docs = set()
         removed_docs = set()
 
-        if field_name in self._memo_hasone:
+        if field_name in self._memo_simple:
+            prev_value = self._memo_simple[ field_name ]
+            return new_value, prev_value
+
+        elif field_name in self._memo_hasone:
             prev_value = self._memo_hasone[ field_name ]
             if prev_value and not equals( prev_value, new_value ):
                 removed_docs.add( prev_value )
@@ -817,11 +828,11 @@ class RelationManagerMixin( object ):
         to_delete = set()
         removed_relations = {}
 
-        changed_relations = self.get_changed_relations()
-        for relation in changed_relations:
-            if hasattr( self._fields[ relation ], 'related_name' ):
+        changed_fields = self.get_changed_fields()
+        for name in changed_fields:
+            if hasattr( self._fields[ name ], 'related_name' ):
                 # This field is `managed`. Find out the changes.
-                added_relations, removed_relations[ relation ] = self.get_changes_for_relation( relation )
+                added_relations, removed_relations[ name ] = self.get_changes_for_field( name )
                 to_save.update( added_relations )
 
         # What should happen to removed relations depends on the delete rule 
