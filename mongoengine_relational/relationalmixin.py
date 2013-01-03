@@ -9,6 +9,8 @@ from mongoengine import base
 from mongoengine.queryset import CASCADE, DO_NOTHING, NULLIFY, DENY, PULL
 from bson import DBRef, ObjectId, SON
 
+import copy
+
 from kitchen.text.converters import getwriter
 import sys
 UTF8Writer = getwriter('utf8')
@@ -484,7 +486,7 @@ class RelationManagerMixin( object ):
 
         for name in self._memo_simple.keys():
             if not field_name or field_name == name:
-                self._memo_simple[ name ] = self._data[ name ]
+                self._memo_simple[ name ] = copy.copy( self._data[ name ] )
 
     def _memoize_documents( self, docs ):
         '''
@@ -731,6 +733,9 @@ class RelationManagerMixin( object ):
                 elif name in self._memo_hasmany:
                     method( request=request, value=None, prev_value=None, field_name=name,
                         added_docs=added_docs, removed_docs=removed_docs )
+                elif name in self._memo_simple:
+                    method( request=request, value=added_docs, prev_value=removed_docs, field_name=name,
+                        added_docs=None, removed_docs=None )
 
         # Sync the memos with the current Document state
         self._memoize_fields( field_name )
@@ -775,25 +780,25 @@ class RelationManagerMixin( object ):
         @rtype: tuple
         '''
         # Make sure we get actual, (dereferenced) document(s)
-        new_value = self[ field_name ]
+        curr_value = self[ field_name ]
         added_docs = set()
         removed_docs = set()
 
         if field_name in self._memo_simple:
             prev_value = self._memo_simple[ field_name ]
-            return new_value, prev_value
+            return curr_value, prev_value
 
         elif field_name in self._memo_hasone:
             prev_value = self._memo_hasone[ field_name ]
-            if prev_value and not equals( prev_value, new_value ):
+            if prev_value and not equals( prev_value, curr_value ):
                 removed_docs.add( prev_value )
-            if new_value and not equals( prev_value, new_value ):
-                added_docs.add( new_value )
+            if curr_value and not equals( prev_value, curr_value ):
+                added_docs.add( curr_value )
 
         elif field_name in self._memo_hasmany:
             prev_value = self._memo_hasmany[ field_name ]
-            added_docs = set_difference( new_value, prev_value )
-            removed_docs = set_difference( prev_value, new_value )
+            added_docs = set_difference( curr_value, prev_value )
+            removed_docs = set_difference( prev_value, curr_value )
 
         else:
             raise RelationalError( "Can't find _memo entry for field_name={}".format( field_name ) )

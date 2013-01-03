@@ -19,11 +19,19 @@ class Office( RelationManagerMixin, Document ):
 
 
 class Zoo( RelationManagerMixin, Document ):
+    on_change_name_called = False
+    on_change_animals_called = False
+
     name = StringField()
     animals = ListField( ReferenceField( 'Animal' ), related_name='zoo' ) # hasmany relation
     office = ReferenceField( 'Office', related_name='tenant' ) # one-to-one relation (incl. 1 side generic)
 
+    def on_change_name( self, request, value, prev_value, **kwargs ):
+        self.on_change_name_called = True
+        print( 'name updated; new={}, old={}'.format( value, prev_value ) )
+
     def on_change_animals( self, request, value, prev_value, added_docs, removed_docs, **kwargs ):
+        self.on_change_animals_called = True
         print( ('animals updated; new={}, old={}, added={}, removed={}').format( value, prev_value, added_docs, removed_docs ) )
 
 

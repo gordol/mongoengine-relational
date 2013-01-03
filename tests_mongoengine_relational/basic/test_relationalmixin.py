@@ -197,8 +197,24 @@ class RelationsTestCase( unittest.TestCase ):
         self.assertIn( 'zoo', d.bear.get_changed_fields() )
 
         self.assertEqual( 0, len( d.tiger.get_changed_fields() ) )
+
         d.tiger.zoo = d.blijdorp
+
         self.assertIn( 'zoo', d.tiger.get_changed_fields() )
+
+        # Test `on_change` for a related field
+        self.assertEqual( d.blijdorp.on_change_animals_called, False )
+        d.blijdorp.save( request=self.request )
+        self.assertEqual( d.blijdorp.on_change_animals_called, True )
+
+        # Test `on_change` for a regular field
+        d.artis.save( request=self.request )
+        self.assertEqual( d.artis.on_change_name_called, False )
+        d.artis.name = 'New Artis'
+        self.assertEqual( d.artis.on_change_name_called, False )
+        d.artis.save( request=self.request )
+        self.assertEqual( d.artis.on_change_name_called, True )
+
 
     def test_update_managed_relations( self ):
         d = self.data
@@ -294,11 +310,10 @@ class RelationsTestCase( unittest.TestCase ):
         self.assertEqual( d.tiger.zoo, None )
         self.assertEqual( office.tenant, None )
 
-        d.artis.name = 'New Artis'
-
         changes = d.artis.get_changed_fields()
 
-        print( changes )
+        self.assertIn( 'animals', changes )
+        self.assertIn( 'office', changes )
 
     def test_memoize_documents( self ):
         pass
