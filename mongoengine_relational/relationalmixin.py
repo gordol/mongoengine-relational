@@ -162,8 +162,9 @@ class ReferenceField( ReferenceField ):
 
         # Get value from document instance if available
         value = instance._data.get( self.name )
+        self._auto_dereference = instance._fields[ self.name ]._auto_dereference
         # Dereference DBRefs
-        if isinstance( value, DBRef ):
+        if self._auto_dereference and isinstance( value, DBRef ):
             result = None
 
             if hasattr( instance, '_request' ):
@@ -202,7 +203,8 @@ class GenericReferenceField( GenericReferenceField ):
             return self
 
         value = instance._data.get( self.name )
-        if isinstance( value, (dict, SON) ):
+        self._auto_dereference = instance._fields[ self.name ]._auto_dereference
+        if self._auto_dereference and isinstance( value, (dict, SON) ):
             result = None
 
             if hasattr( instance, '_request' ):
@@ -241,11 +243,12 @@ class ListField( ListField ):
             # Document class being used rather than a document object
             return self
 
-        # We only case about lists that contain documents/references here.
+        # We only care about lists that contain documents/references here.
         # Code is adapted from `ComplexBaseField.__get__`.
         if isinstance( self.field, ( GenericReferenceField, ReferenceField ) ):
-            # TODO: not sure when this code actually gets called... leaving it in for now.
-            if not self._dereference and instance._initialised:
+            dereference = self._auto_dereference
+            self._auto_dereference = instance._fields[self.name]._auto_dereference
+            if not self._dereference and instance._initialised and dereference:
                 instance._data[self.name] = self._dereference(
                     instance._data.get(self.name), max_depth=1, instance=instance,
                     name=self.name
@@ -260,7 +263,7 @@ class ListField( ListField ):
                 instance._data[ self.name ] = value
 
             # If we have raw values, obtain documents; either from cache, or by dereferencing
-            if instance._initialised and isinstance( value, BaseList ) and not value._dereferenced:
+            if self._auto_dereference and instance._initialised and isinstance( value, BaseList ) and not value._dereferenced:
                 # If we can find all objects in the cache, use it. Otherwise, retrieve all of them.
                 if hasattr( instance, '_request' ) and all( obj in instance._request.cache for obj in value ):
                     for index, object in enumerate( value ):
