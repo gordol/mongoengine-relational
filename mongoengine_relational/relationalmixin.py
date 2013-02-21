@@ -410,7 +410,7 @@ class RelationManagerMixin( object ):
                 elif related_field.related_name != name:
                     raise RelationalError( "The field `{}` of `{}` has `related_name='{}'`; should this be `related_name='{}'`?".format( related_field.name, related_doc_type._class_name, related_field.related_name, name ) )
 
-                    #print( '  {0} <-> {1}.{2}'.format( name, related_doc_type._class_name, related_field.name ) )
+                    # print( '  {0} <-> {1}.{2}'.format( name, related_doc_type._class_name, related_field.name ) )
 
     def _supplement_delete_rules( self ):
         '''
@@ -533,8 +533,7 @@ class RelationManagerMixin( object ):
         @type field_name: string
         @param
         '''
-        if not isinstance( request, Request ):
-            raise ValueError( 'request={} should be an instance of `pyramid.request.Request`'.format( request ) )
+        self._set_request( request )
 
         data = self._data[ field_name ]
         field = self._fields[ field_name ]
@@ -563,10 +562,7 @@ class RelationManagerMixin( object ):
         '''
         request = request or ( cascade_kwargs and cascade_kwargs[ 'request' ] ) or None
 
-        if not request:
-            raise ValueError( '`save` needs a `request` parameter (in order to properly invoke `on_change*` callbacks)' )
-        elif not isinstance( request, Request ):
-            raise ValueError( 'request={} should be an instance of `pyramid.request.Request`'.format( request ) )
+        self._set_request( request )
 
         # Stuff `request` in `cascade_kwargs`, so `cascade_save` will receive it as a kwarg
         cascade_kwargs = cascade_kwargs or {}
@@ -641,8 +637,7 @@ class RelationManagerMixin( object ):
         @param safe:
         @return:
         '''
-        if not isinstance( request, Request ):
-            raise ValueError( 'request={} should be an instance of `pyramid.request.Request`'.format( request ) )
+        self._set_request( request )
 
         # Trigger `pre_delete` hook if it's defined on this Document
         if hasattr( self, 'pre_delete' ) and callable( self.pre_delete ):
@@ -668,8 +663,7 @@ class RelationManagerMixin( object ):
         @type field_name: string
         @return:
         '''
-        if not isinstance( request, Request ):
-            raise ValueError( 'request={} should be an instance of `pyramid.request.Request`'.format( request ) )
+        self._set_request( request )
 
         # Trigger `pre_update` hook if it's defined on this Document
         if hasattr( self, 'pre_update' ) and callable( self.pre_update ):
@@ -929,10 +923,10 @@ class RelationManagerMixin( object ):
                     if isinstance( related_data, ( list, tuple ) ):
                         if self in related_data:
                             related_data.remove( self )
-                            print( 'Removed `{0}` from `{1}` of {2} `{3}`'.format( self, field.related_name, related_doc._class_name, related_doc ).encode("utf-8") )
+                            # print( 'Removed `{0}` from `{1}` of {2} `{3}`'.format( self, field.related_name, related_doc._class_name, related_doc ).encode("utf-8") )
                     elif related_data == self:
                         related_doc._data[ field.related_name ] = None
-                        print( 'Cleared `{0}` of {1}'.format( field.related_name, related_doc ).encode("utf-8") )
+                        # print( 'Cleared `{0}` of {1}'.format( field.related_name, related_doc ).encode("utf-8") )
 
                 # Set new value
                 related_doc = new_value
@@ -944,10 +938,10 @@ class RelationManagerMixin( object ):
                     if isinstance( related_data, ( list, tuple ) ):
                         if self not in related_data:
                             related_data.append( self )
-                            print( 'Appended `{0}` to `{1}` of {2} `{3}`'.format( self, field.related_name, related_doc._class_name, related_doc ).encode("utf-8") )
+                            # print( 'Appended `{0}` to `{1}` of {2} `{3}`'.format( self, field.related_name, related_doc._class_name, related_doc ).encode("utf-8") )
                     elif related_data != self:
                         related_doc._data[ field.related_name ] = self
-                        print( 'Set `{0}` of `{1}` to `{2}`'.format( field.related_name, related_doc, self ).encode("utf-8") )
+                        # print( 'Set `{0}` of `{1}` to `{2}`'.format( field.related_name, related_doc, self ).encode("utf-8") )
 
             self._data[ field_name ] = new_value
 
@@ -1022,6 +1016,13 @@ class RelationManagerMixin( object ):
             if hasattr( field, 'related_name' ):
                 # the other side of the relation is always a 'hasone'
                 value.update_hasone( field.related_name, None )
+
+    def _set_request( self, request ):
+        if not isinstance( request, Request ):
+            raise ValueError( 'request={} should be an instance of `pyramid.request.Request`'.format( request ) )
+        elif not hasattr( self, '_request' ):
+            self._request = request
+            request.cache.add( self )
 
     #
     # Utility comparison functions, to compare a mix of DBRefs and Documents
