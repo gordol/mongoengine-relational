@@ -1,6 +1,8 @@
 from __future__ import print_function
 from __future__ import unicode_literals
 
+import collections
+
 from mongoengine import Document
 from mongoengine.queryset import QuerySet
 from bson import DBRef, ObjectId
@@ -59,7 +61,8 @@ class DocumentCache( object ):
         Add one or more documents to the cache.
 
         @param documents:
-        @type documents: Document or list or set or QuerySet
+        @type documents: Document or QuerySet or Iterable
+        @rtype Document or Document[]
         '''
         if isinstance( documents, Document ):
             if documents.pk and not documents in self:
@@ -68,13 +71,19 @@ class DocumentCache( object ):
             # Set the `request` on the Document, so it can take advantage of the cache itself
             documents._request = self.request
 
-        elif isinstance( documents, ( list, set, QuerySet ) ):
+            return documents
+
+        elif isinstance( documents, ( QuerySet, collections.Iterable ) ):
+            docs = []
             for obj in documents:
                 if obj.pk and not obj in self:
                     self[ obj.pk ] = obj
 
                 # Set the `request` on the Document, so it can take advantage of the cache itself
                 obj._request = self.request
+                docs.append( obj )
+
+            return docs
 
     def remove( self, documents ):
         '''
