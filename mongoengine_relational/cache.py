@@ -71,7 +71,7 @@ class DocumentCache( object ):
             # Set the `request` on the Document, so it can take advantage of the cache itself
             documents._request = self.request
 
-            return documents
+            return self[ documents.pk ]
 
         elif isinstance( documents, ( QuerySet, collections.Iterable ) ):
             docs = []
@@ -81,7 +81,7 @@ class DocumentCache( object ):
 
                 # Set the `request` on the Document, so it can take advantage of the cache itself
                 obj._request = self.request
-                docs.append( obj )
+                docs.append( self[ obj.pk ] )
 
             return docs
 
