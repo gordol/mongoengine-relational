@@ -65,23 +65,34 @@ class DocumentCache( object ):
         @rtype Document or Document[]
         '''
         if isinstance( documents, Document ):
-            if documents.pk and not documents in self:
-                self[ documents.pk ] = documents
-
             # Set the `request` on the Document, so it can take advantage of the cache itself
             documents._request = self.request
 
-            return self[ documents.pk ]
+            # If `documents` doesn't have a `pk`, continue.
+            # If it does have a `pk`, set it as the cache entry for this doc if there's no entry yet,
+            # or return the cache entry.
+            if documents.pk:
+                if documents in self:
+                    documents = self[ documents.pk ]
+                else:
+                    self[ documents.pk ] = documents
+
+            return documents
 
         elif isinstance( documents, ( QuerySet, collections.Iterable ) ):
             docs = []
             for obj in documents:
-                if obj.pk and not obj in self:
-                    self[ obj.pk ] = obj
-
                 # Set the `request` on the Document, so it can take advantage of the cache itself
                 obj._request = self.request
-                docs.append( self[ obj.pk ] )
+
+                if obj.pk:
+                    if obj in self:
+                        obj = self[ obj.pk ]
+                    else:
+                        self[ obj.pk ] = obj
+
+
+                docs.append( obj )
 
             return docs
 
