@@ -96,6 +96,9 @@ class DocumentCache( object ):
 
             return docs
 
+        else:
+            raise ValueError( 'documents={} must be either a `Document`, or an iterable set of `Document`s.'.format( documents ) )
+
     def remove( self, documents ):
         '''
         Remove one or more documents from the cache.
