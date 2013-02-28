@@ -91,13 +91,10 @@ class DocumentCache( object ):
                     else:
                         self[ obj.pk ] = obj
 
-
-                docs.append( obj )
+                if isinstance( obj, Document ):
+                    docs.append( obj )
 
             return docs
-
-        else:
-            raise ValueError( 'documents={} must be either a `Document`, or an iterable set of `Document`s.'.format( documents ) )
 
     def remove( self, documents ):
         '''
