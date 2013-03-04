@@ -576,9 +576,10 @@ class RelationManagerMixin( object ):
 
         # Trigger `on_change*` callbacks for changed relations, so we can set new privileges
         if not is_new:
-            self._on_change( request )
+            # Remember changed fields for `post_save` before they get reset by `_on_change`.
+            changed_fields = self.get_changed_fields()
+            self._on_change( request, changed_fields=changed_fields )
 
-        updated_fields = self.get_changed_fields()
         result = super( RelationManagerMixin, self ).save( safe=safe, force_insert=force_insert, validate=validate,
                 write_options=write_options, cascade=cascade, cascade_kwargs=cascade_kwargs, _refs=_refs )
 
@@ -594,12 +595,13 @@ class RelationManagerMixin( object ):
             if hasattr( self, 'on_change_pk' ) and callable( self.on_change_pk ):
                 self.on_change_pk( request=request, value=self.pk, prev_value=None, field_name=self._meta[ 'id_field' ] )
 
-            # Trigger `on_change*` callbacks for changed relations, so we can set new privileges
-            self._on_change( request )
+            # Remember changed fields for `post_save` before they get reset by `_on_change`.
+            changed_fields = self.get_changed_fields()
+            self._on_change( request, changed_fields=changed_fields )
 
         # Trigger `post_save` hook if it's defined on this Document
         if hasattr( self, 'post_save' ) and callable( self.post_save ):
-            self.post_save( request, updated_fields )
+            self.post_save( request, changed_fields )
 
         return result
 
@@ -696,21 +698,22 @@ class RelationManagerMixin( object ):
             for related_doc in current_related_docs:
                 self.remove_hasmany( field_name, related_doc )
 
-    def _on_change( self, request, field_name=None ):
+    def _on_change( self, request, field_name=None, changed_fields=None ):
         '''
         Handle Document changes. Triggers `on_change*` callbacks to handle changes on specific relations.
 
-        @param field_name: limit the fields that are processed (handlers triggerd, and memoized) to
+        @param field_name: Limit the fields that are processed (handlers triggerd, and memoized) to
             the given field. If not specified, all fields are processed.
         @type field_name: string
+        @param changed_fields: The set of `changed_fields` to process. Default: none
         '''
-        changed_fields = self.get_changed_fields()
+        fields = changed_fields if changed_fields is not None else self.get_changed_fields()
 
         # The main `on_change` function should always be called, regardless of `field_name`!
         if hasattr( self, 'on_change' ) and callable( self.on_change ):
-            self.on_change( request=request, changed_fields=changed_fields )
+            self.on_change( request=request, changed_fields=fields )
 
-        for name in changed_fields:
+        for name in fields:
             # Proceed if `field_name` is unset, or we've arrived at the correct `field_name`.
             if field_name and field_name != name:
                 continue
