@@ -678,7 +678,7 @@ class RelationManagerMixin( object ):
         result = super( RelationManagerMixin, self ).update( **kwargs )
 
         if field_name:
-            self._on_change( request, field_name )
+            self._on_change( request, field_name, changed_fields={ field_name } )
 
         # Trigger `post_update` hook if it's defined on this Document
         if hasattr( self, 'post_update' ) and callable( self.post_update ):
