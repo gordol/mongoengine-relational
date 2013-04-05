@@ -593,7 +593,7 @@ class RelationManagerMixin( object ):
             # Trigger `on_change_pk` if it's present. `pk` is a special case since it isn't a relation,
             # so it won't be triggered through `_on_change`.
             if hasattr( self, 'on_change_pk' ) and callable( self.on_change_pk ):
-                self.on_change_pk( request=request, value=self.pk, prev_value=None, field_name=self._meta[ 'id_field' ] )
+                self.on_change_pk( request, self.pk, None, field_name=self._meta[ 'id_field' ] )
 
             # Remember changed fields for `post_save` before they get reset by `_on_change`.
             changed_fields = self.get_changed_fields()
@@ -728,14 +728,11 @@ class RelationManagerMixin( object ):
                 if name in self._memo_hasone:
                     curr_value = added_docs.pop() if len( added_docs ) else None
                     prev_value = removed_docs.pop() if len( removed_docs ) else None
-                    method( request=request, value=curr_value, prev_value=prev_value, field_name=name,
-                        added_docs=None, removed_docs=None )
+                    method( request, curr_value, prev_value, field_name=name )
                 elif name in self._memo_hasmany:
-                    method( request=request, value=None, prev_value=None, field_name=name,
-                        added_docs=added_docs, removed_docs=removed_docs )
+                    method( request, added_docs, removed_docs, field_name=name )
                 elif name in self._memo_simple:
-                    method( request=request, value=added_docs, prev_value=removed_docs, field_name=name,
-                        added_docs=None, removed_docs=None )
+                    method( request, added_docs, removed_docs, field_name=name )
 
         # Sync the memos with the current Document state
         self._memoize_fields( field_name )
