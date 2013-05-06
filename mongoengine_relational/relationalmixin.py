@@ -144,7 +144,7 @@ class ReferenceField( ReferenceField ):
 
     The `related_name` should point to a `ListField`, `ReferenceField` or
     `GenericReferenceField`.  The corresponding field may or may not have a
-    `related_name` argument pointing back here.  
+    `related_name` argument pointing back here.
     '''
     
     def __init__(self, document_type, **kwargs):
@@ -227,7 +227,7 @@ class ListField( ListField ):
 
     The `related_name` should point to a `ReferenceField`. The corresponding
     `ReferenceField` may or may not have a `related_name` argument pointing
-    back here.  
+    back here.
     '''
 
     def __init__(self, field=None, **kwargs):
@@ -360,7 +360,22 @@ class RelationManagerMixin( object ):
         '''
         if self._initialised and key[ 0 ] != '_':
             if key in self._memo_hasone:
+                # Duplicate a part of Mongoengine's `base/fields.py`.
+                # After https://github.com/MongoEngine/mongoengine/commit/51e50bf0a9b4a6580dd78909b54887e1caeaa179,
+                # HasOne fields will not get marked as changed anymore since `update_hasone` already updates the `_data`
+                # contents itself.
+                # This part mimics https://github.com/MongoEngine/mongoengine/commit/85b81fb12a3e6fd4a1129602c433ce381d45e925
+                if self._initialised:
+                    try:
+                        if (key not in self._data or self._data[self.name] != value):
+                            self._mark_as_changed(key)
+                    except:
+                        # Values cant be compared eg: naive and tz datetimes
+                        # So mark it as changed
+                        self._mark_as_changed(key)
+
                 self.update_hasone( key, value )
+
             elif key in self._memo_hasmany:
                 self.update_hasmany( key, value, self[ key ] )
 
