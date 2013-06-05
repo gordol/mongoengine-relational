@@ -726,7 +726,7 @@ class RelationManagerMixin( object ):
 
         # The main `on_change` function should always be called, regardless of `field_name`!
         if hasattr( self, 'on_change' ) and callable( self.on_change ):
-            self.on_change( request=request, changed_fields=fields )
+            self.on_change( request=request, changed_fields=fields, field_name=field_name )
 
         for name in fields:
             # Proceed if `field_name` is unset, or we've arrived at the correct `field_name`.
