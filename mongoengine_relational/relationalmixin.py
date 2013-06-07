@@ -596,8 +596,8 @@ class RelationManagerMixin( object ):
             changed_fields = self.get_changed_fields()
             self._on_change( request, changed_fields=changed_fields )
 
-        result = super( RelationManagerMixin, self ).save( safe=safe, force_insert=force_insert, validate=validate,
-                write_options=write_options, cascade=cascade, cascade_kwargs=cascade_kwargs, _refs=_refs )
+        result = super( RelationManagerMixin, self ).save( request=request, force_insert=force_insert, validate=validate,
+            clean=clean, write_concern=write_concern, cascade=cascade, cascade_kwargs=cascade_kwargs, _refs=_refs, kwargs=kwargs )
 
         # Update relations after saving if it's a new Document; it should have an id now
         if is_new:
@@ -648,7 +648,7 @@ class RelationManagerMixin( object ):
         return result
 
 
-    def delete( self, request, **write_concern):
+    def delete( self, request, **write_concern ):
         '''
         Override `delete` to clear existing relations before performing the actual delete, to prevent
         lingering references to this document when it's gone.
