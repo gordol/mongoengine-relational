@@ -642,7 +642,7 @@ class RelationManagerMixin( object ):
 
         self.clear_relations()
 
-        result = super( RelationManagerMixin, self ).delete( safe=safe )
+        result = super( RelationManagerMixin, self ).delete( write_concern=write_concern )
 
         # Trigger `post_delete` hook if it's defined on this Document
         if hasattr( self, 'post_delete' ) and callable( self.post_delete ):
