@@ -570,18 +570,14 @@ class RelationManagerMixin( object ):
 
         return result
 
-    def save( self, request=None, safe=True, force_insert=False, validate=True, write_options=None, cascade=None, cascade_kwargs=None, _refs=None ):
+    def save( self, request=None, force_insert=False, validate=True, clean=True, write_concern=None,
+              cascade=None, cascade_kwargs=None, _refs=None, **kwargs ):
         ''' 
         Override `save`. If a document is being saved for the first time,
         it will be given an id (if the save was successful).  
         '''
-        request = request or ( cascade_kwargs and cascade_kwargs[ 'request' ] ) or None
-
+        request = request or ( kwargs and '_request' in kwargs and kwargs[ '_request' ] ) or self._request or None
         self._set_request( request )
-
-        # Stuff `request` in `cascade_kwargs`, so `cascade_save` will receive it as a kwarg
-        cascade_kwargs = cascade_kwargs or {}
-        cascade_kwargs.setdefault( 'request', request )
 
         is_new = self.pk is None
 
@@ -595,8 +591,8 @@ class RelationManagerMixin( object ):
             changed_fields = self.get_changed_fields()
             self._on_change( request, changed_fields=changed_fields )
 
-        result = super( RelationManagerMixin, self ).save( safe=safe, force_insert=force_insert, validate=validate,
-                write_options=write_options, cascade=cascade, cascade_kwargs=cascade_kwargs, _refs=_refs )
+        result = super( RelationManagerMixin, self ).save( request=request, force_insert=force_insert, validate=validate,
+            clean=clean, write_concern=write_concern, cascade=cascade, cascade_kwargs=cascade_kwargs, _refs=_refs, kwargs=kwargs )
 
         # Update relations after saving if it's a new Document; it should have an id now
         if is_new:
@@ -620,21 +616,6 @@ class RelationManagerMixin( object ):
 
         return result
 
-    def cascade_save(self, *args, **kwargs):
-        '''
-        Overridden to propagate `request` for cascade saves.
-        '''
-        if ( kwargs[ 'request' ] ):
-            if 'cascade_kwargs' in kwargs:
-                kwargs[ 'cascade_kwargs' ].update( { 'request': kwargs.get( 'request' ) } )
-            else:
-                kwargs['cascade_kwargs'] = { 'request': kwargs.get( 'request' ) } 
-
-            del kwargs[ 'request' ]
-
-        return super( RelationManagerMixin, self ).cascade_save( *args, **kwargs )
-
-
     def reload( self, max_depth=1 ):
         '''
         Override `reload`, to perform an `update_relations` after new data has been fetched.
@@ -646,8 +627,7 @@ class RelationManagerMixin( object ):
 
         return result
 
-
-    def delete( self, request, safe=False ):
+    def delete( self, request, **write_concern ):
         '''
         Override `delete` to clear existing relations before performing the actual delete, to prevent
         lingering references to this document when it's gone.
