@@ -570,8 +570,7 @@ class RelationManagerMixin( object ):
 
         return result
 
-    def save( self, request=None, force_insert=False, validate=True, clean=True, write_concern=None,
-              cascade=None, cascade_kwargs=None, _refs=None, **kwargs ):
+    def save( self, request=None, safe=True, force_insert=False, validate=True, write_options=None, cascade=None, cascade_kwargs=None, _refs=None ):
         ''' 
         Override `save`. If a document is being saved for the first time,
         it will be given an id (if the save was successful).  
@@ -648,7 +647,7 @@ class RelationManagerMixin( object ):
         return result
 
 
-    def delete( self, request, **write_concern):
+    def delete( self, request, safe=False ):
         '''
         Override `delete` to clear existing relations before performing the actual delete, to prevent
         lingering references to this document when it's gone.
