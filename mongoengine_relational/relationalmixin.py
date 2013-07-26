@@ -1066,8 +1066,8 @@ def equals( doc_or_ref1, doc_or_ref2=False ):
     # (if the other object doesn't have a pk yet, they can't be equal).
     if doc_or_ref1 and doc_or_ref2:
         if isinstance( doc_or_ref1, (ObjectId, DBRef) ) or isinstance( doc_or_ref2, (ObjectId, DBRef) ):
-            doc_or_ref1 = doc_or_ref1.id if isinstance( doc_or_ref1, DBRef ) else doc_or_ref1 if isinstance( doc_or_ref1, ObjectId ) else doc_or_ref1.pk
-            doc_or_ref2 = doc_or_ref2.id if isinstance( doc_or_ref2, DBRef ) else doc_or_ref2 if isinstance( doc_or_ref2, ObjectId ) else doc_or_ref2.pk
+            doc_or_ref1 = doc_or_ref1 if isinstance( doc_or_ref1, ObjectId ) else doc_or_ref1.id if isinstance( doc_or_ref1, DBRef ) else doc_or_ref1.pk
+            doc_or_ref2 = doc_or_ref2 if isinstance( doc_or_ref2, ObjectId ) else doc_or_ref2.id if isinstance( doc_or_ref2, DBRef ) else doc_or_ref2.pk
 
     return doc_or_ref1 == doc_or_ref2
 
