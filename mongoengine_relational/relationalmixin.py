@@ -99,7 +99,7 @@ class BaseList( list ):
 
         return result
 
-    def pop(self, index=None ):
+    def pop( self, index=None ):
         self._mark_as_changed()
 
         result = super(BaseList, self).pop( index ) if index else super(BaseList, self).pop()
@@ -108,7 +108,7 @@ class BaseList( list ):
 
         return result
 
-    def remove(self, element ):
+    def remove( self, element ):
         self._mark_as_changed()
 
         result = super(BaseList, self).remove( element )
