@@ -5,6 +5,7 @@ from pyramid.request import Request
 
 from mongoengine import Document, GenericReferenceField, ReferenceField, ListField, ValidationError
 from mongoengine.base import ComplexBaseField
+from mongoengine.common import _import_class
 from mongoengine import base
 from mongoengine.queryset import CASCADE, DO_NOTHING, NULLIFY, DENY, PULL
 from bson import DBRef, ObjectId, SON
@@ -246,10 +247,15 @@ class ListField( ListField ):
         # We only care about lists that contain documents/references here.
         # Code is adapted from `ComplexBaseField.__get__`.
         if isinstance( self.field, ( GenericReferenceField, ReferenceField ) ):
-            dereference = self._auto_dereference
+            dereference = (self._auto_dereference and
+                       (self.field is None or isinstance(self.field,
+                        (GenericReferenceField, ReferenceField))))
+
+            _dereference = _import_class("DeReference")()
+
             self._auto_dereference = instance._fields[self.name]._auto_dereference
-            if not self._dereference and instance._initialised and dereference:
-                instance._data[self.name] = self._dereference(
+            if instance._initialised and dereference:
+                instance._data[self.name] = _dereference(
                     instance._data.get(self.name), max_depth=1, instance=instance,
                     name=self.name
                 )
@@ -264,12 +270,12 @@ class ListField( ListField ):
 
             # If we have raw values, obtain documents; either from cache, or by dereferencing
             if self._auto_dereference and instance._initialised and isinstance( value, BaseList ) and not value._dereferenced:
-                # If we can find all objects in the cache, use it. Otherwise, retrieve all of them.
+                # If we can find_dereference all objects in the cache, use it. Otherwise, retrieve all of them.
                 if hasattr( instance, '_request' ) and all( obj in instance._request.cache for obj in value ):
                     for index, object in enumerate( value ):
                         super( BaseList, value ).__setitem__( index, instance._request.cache[ object ] )
                 else:
-                    value = self._dereference(
+                    value = _dereference(
                         value, max_depth=1, instance=instance, name=self.name
                     )
                     value._dereferenced = True
