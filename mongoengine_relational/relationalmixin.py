@@ -412,7 +412,7 @@ class RelationManagerMixin( object ):
                 else:
                     related_doc_type = None
             else:
-                self._memo_simple[ name ] = None
+                self._memo_simple[ name ] = field.default
                 related_doc_type = None
 
             # If 'field' is relational and has a 'related_name', check whether the field
