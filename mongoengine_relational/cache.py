@@ -64,7 +64,10 @@ class DocumentCache( object ):
         @type documents: Document or QuerySet or Iterable
         @rtype Document or Document[]
         '''
-        if isinstance( documents, Document ):
+        if isinstance( documents, basestring ):
+            return documents
+
+        elif isinstance( documents, Document ):
             # Set the `request` on the Document, so it can take advantage of the cache itself
             documents._request = self.request
 

@@ -101,7 +101,7 @@ class CacheTestCase( unittest.TestCase ):
         d.cache.add( d.tiger )
 
         # Get a single doc
-        self.assertFalse( d.artis in d.cache )
+        self.assertTrue( d.artis in d.cache )
 
         zoo = d.tiger.fetch( self.request, 'zoo' )
         self.assertEqual( d.artis, zoo )

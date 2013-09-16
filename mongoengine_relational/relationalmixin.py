@@ -629,7 +629,7 @@ class RelationManagerMixin( object ):
         result = super( RelationManagerMixin, self ).reload( max_depth=max_depth )
 
         # When doing an explicit reload, the relations as fetched from the database should be considered leading.
-        self.update_relations()  # FIXME: add rebuild=True functionality?
+        self.update_relations()  # TODO: add rebuild=True functionality?
 
         return result
 
@@ -743,7 +743,7 @@ class RelationManagerMixin( object ):
         Get a set listing the names of fields on this document that have been
         modified since the last call to `_memoize_fields` (which is
         called from `_on_change`, which is called from `save`).
-        ''' 
+        '''
         changed_fields = set()
 
         # For hasone, simply compare the values.

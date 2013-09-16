@@ -30,9 +30,9 @@ class Zoo( RelationManagerMixin, Document ):
         self.on_change_name_called = True
         print( 'name updated; new={}, old={}'.format( value, prev_value ) )
 
-    def on_change_animals( self, request, value, prev_value, added_docs, removed_docs, **kwargs ):
+    def on_change_animals( self, request, added_docs, removed_docs, **kwargs ):
         self.on_change_animals_called = True
-        print( ('animals updated; new={}, old={}, added={}, removed={}').format( value, prev_value, added_docs, removed_docs ) )
+        print( ('animals updated; added={}, removed={}').format( added_docs, removed_docs ) )
 
 
 class Animal( RelationManagerMixin, Document ):
@@ -40,8 +40,8 @@ class Animal( RelationManagerMixin, Document ):
     species = StringField( required=True )
     zoo = ReferenceField( 'Zoo', related_name='animals', required=True ) # hasmany relation
 
-    def on_change_zoo( self, request, value, prev_value, **kwargs ):
-        print( ('zoo updated; new={}, old={}').format( value, prev_value ) )
+    def on_change_zoo( self, request, new_zoo, prev_zoo, **kwargs ):
+        print( ('zoo updated; added={}, removed={}').format( new_zoo, prev_zoo ) )
 
 
 class Node( RelationManagerMixin, Document ):
