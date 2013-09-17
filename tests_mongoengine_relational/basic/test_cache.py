@@ -6,15 +6,13 @@ import unittest
 from mongoengine_relational import *
 
 from tests_mongoengine_relational.utils import Struct
-from bson import ObjectId
+from bson import DBRef, ObjectId
 
 from pyramid import testing
 from pyramid.response import Response
 from pyramid.request import Request
 
 from tests_mongoengine_relational.basic.documents import *
-
-from mongoengine_relational import *
 
 
 class CacheTestCase( unittest.TestCase ):

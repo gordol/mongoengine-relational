@@ -40,8 +40,6 @@ class FauxSave( object ):
     in implementing documents.
     '''
 
-    last_id = 1
-
     @monkeypatch_method( Document )
     def save( self, *args, **kwargs ):
         if self.pk is None:

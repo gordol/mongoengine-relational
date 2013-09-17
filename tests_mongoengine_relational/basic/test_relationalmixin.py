@@ -4,7 +4,7 @@ from __future__ import unicode_literals
 import unittest
 
 from tests_mongoengine_relational.utils import Struct
-from bson import ObjectId
+from bson import DBRef, ObjectId
 
 from pyramid import testing
 from pyramid.request import Request
@@ -71,6 +71,17 @@ class RelationsTestCase( unittest.TestCase ):
         # test remove/insert
         d.artis.animals.remove( d.tiger )
         d.artis.animals.insert( 0, d.tiger )
+
+    def test_create_document( self ):
+        d = self.data
+
+        # Without id
+        self.assertEqual( 3, len( d.bear.get_changed_fields() ) )
+        d.bear.save( self.request )
+        self.assertEqual( 0, len( d.bear.get_changed_fields() ) )
+
+        # With id
+        self.assertEqual( 0, len( d.tiger.get_changed_fields() ) )
 
     def test_relation_initialization( self ):
         d = self.data
@@ -330,7 +341,4 @@ class RelationsTestCase( unittest.TestCase ):
         # Updating a relation should memoize it, and thus remove it from `get_changed_relations`
         d.artis.update( self.request, 'animals' )
         self.assertNotIn( 'animals', d.artis.get_changed_fields() )
-
-    def test_create_document( self ):
-        pass
 

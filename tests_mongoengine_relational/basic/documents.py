@@ -6,7 +6,6 @@ from mongoengine_relational import RelationManagerMixin
 
 from mongoengine import *
 from mongoengine_relational import *
-from bson import DBRef
 
 
 class User( RelationManagerMixin, Document ):
