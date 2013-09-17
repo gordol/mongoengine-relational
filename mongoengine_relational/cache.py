@@ -42,32 +42,36 @@ class DocumentCache( object ):
         return self.remove( id )
 
     def __contains__( self, id ):
-        id = id.id if isinstance( id, ( DBRef, Document ) ) else id
-        value = self[ str( id ) ]
-        return value is not None
+        object_id = id.id if isinstance( id, ( DBRef, Document ) ) else id
+
+        if isinstance( id, Document ) and id.pk:
+            self[ id.pk ] = id
+
+        return self[ str( object_id ) ] is not None
 
     def __len__(self):
         return len( self._documents )
 
     def get( self, id, default=None ):
         try:
-            id = id.id if isinstance( id, ( DBRef, Document ) ) else id
-            return self._documents[ str( id ) ]
+            object_id = id.id if isinstance( id, ( DBRef, Document ) ) else id
+
+            if isinstance( id, Document ) and id.pk:
+                self[ id.pk ] = id
+
+            return self._documents[ str( object_id ) ]
         except KeyError:
             return default
 
     def add( self, documents ):
         '''
-        Add one or more documents to the cache.
+        Add one or more documents to the cache. Only Documents will be returned.
 
         @param documents:
         @type documents: Document or QuerySet or Iterable
         @rtype Document or Document[]
         '''
-        if isinstance( documents, basestring ):
-            return documents
-
-        elif isinstance( documents, Document ):
+        if isinstance( documents, Document ):
             # Set the `request` on the Document, so it can take advantage of the cache itself
             documents._request = self.request
 

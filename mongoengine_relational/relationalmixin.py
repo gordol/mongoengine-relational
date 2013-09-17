@@ -270,7 +270,7 @@ class ListField( ListField ):
 
             # If we have raw values, obtain documents; either from cache, or by dereferencing
             if self._auto_dereference and instance._initialised and isinstance( value, BaseList ) and not value._dereferenced:
-                # If we can find_dereference all objects in the cache, use it. Otherwise, retrieve all of them.
+                # If we can find all objects in the cache, use it. Otherwise, retrieve all of them.
                 if hasattr( instance, '_request' ) and all( obj in instance._request.cache for obj in value ):
                     for index, object in enumerate( value ):
                         super( BaseList, value ).__setitem__( index, instance._request.cache[ object ] )
