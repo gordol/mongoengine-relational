@@ -512,42 +512,9 @@ class RelationManagerMixin( object ):
             if not field_name or field_name == name:
                 self._memo_simple[ name ] = copy.copy( self._data[ name ] )
 
-    def _memoize_documents( self, docs ):
-        '''
-        Store the given document(s) in a memo
-
-        @param docs:
-        @type docs: Document or list or set or tuple
-        '''
-        if isinstance( docs, Document ):
-            docs = [ docs ]
-
-        if isinstance( docs, ( list, set, tuple ) ):
-            documents = { doc for doc in docs if isinstance( doc, Document ) }
-            self._memo_related_docs.update( documents )
-
-    def fetch( self, request, field_name ):
-        '''
-        Get documents for a relation; retrieves documents from cache if possible.
-
-        @type request: pyramid.request.Request
-        @param field_name:
-        @type field_name: string
-        @param
-        '''
-        result = self._fetch( request, field_name )
-
-        if not result:
-            result = getattr( self, field_name )
-
-            # Add fetched documents to the cache
-            request.cache.add( result )
-
-        return result
-
     def _fetch( self, request, field_name ):
         '''
-        Get documents for a relation; retrieves documents from cache if possible.
+        Attempt to retrieve documents for a relation from cache.
 
         @type request: pyramid.request.Request
         @param field_name:
@@ -629,7 +596,7 @@ class RelationManagerMixin( object ):
         result = super( RelationManagerMixin, self ).reload( max_depth=max_depth )
 
         # When doing an explicit reload, the relations as fetched from the database should be considered leading.
-        self.update_relations()  # TODO: add rebuild=True functionality?
+        self.update_relations() # TODO: add rebuild=True functionality?
 
         return result
 
@@ -894,6 +861,7 @@ class RelationManagerMixin( object ):
         # endless `dereferencing` loop.
         for field_name in self._memo_hasone.keys():
             related_doc = self._data[ field_name ]
+            # print( 'updating `{0}.{1}`, related_doc=`{2}`'.format( self, field_name, related_doc ) )
             if isinstance( related_doc, RelationManagerMixin ):
                 self.update_hasone( field_name, related_doc )
 
@@ -1017,6 +985,20 @@ class RelationManagerMixin( object ):
             if hasattr( field, 'related_name' ):
                 # the other side of the relation is always a 'hasone'
                 value.update_hasone( field.related_name, None )
+
+    def _memoize_documents( self, docs ):
+        '''
+        Store the given document(s) in a memo
+
+        @param docs:
+        @type docs: Document or list or set or tuple
+        '''
+        if isinstance( docs, Document ):
+            docs = [ docs ]
+
+        if isinstance( docs, ( list, set, tuple ) ):
+            documents = { doc for doc in docs if isinstance( doc, Document ) }
+            self._memo_related_docs.update( documents )
 
     def _set_request( self, request ):
         if not isinstance( request, Request ):

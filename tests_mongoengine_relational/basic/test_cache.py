@@ -94,18 +94,14 @@ class CacheTestCase( unittest.TestCase ):
         d = self.data
 
         # Get something silly, non-relational
-        d.artis.fetch( self.request, 'name' )
+        self.assertEqual( d.artis.name, 'Artis' )
 
-        # Add `tiger` to the cache; it's zoo isn't in there yet
+        # Add `tiger` to the cache; its zoo isn't in there before, but should appear since `tiger` now knows the request
+        self.assertFalse( d.artis in d.cache )
         d.cache.add( d.tiger )
-
-        # Get a single doc
         self.assertTrue( d.artis in d.cache )
 
-        zoo = d.tiger.fetch( self.request, 'zoo' )
-        self.assertEqual( d.artis, zoo )
-
-        self.assertTrue( d.artis in d.cache )
+        self.assertEqual( d.artis, d.tiger.zoo )
 
         # Get a list of docs (contains one DBRef, some Documents)
         lion = DBRef( 'Animal', ObjectId() )
