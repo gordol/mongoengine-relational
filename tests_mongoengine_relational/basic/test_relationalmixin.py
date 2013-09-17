@@ -3,7 +3,8 @@ from __future__ import unicode_literals
 
 import unittest
 
-from tests_mongoengine_relational.utils import Struct, get_object_id
+from tests_mongoengine_relational.utils import Struct
+from bson import ObjectId
 
 from pyramid import testing
 from pyramid.request import Request
@@ -31,9 +32,9 @@ class RelationsTestCase( unittest.TestCase ):
         d.office = Office( tenant=d.blijdorp )
         d.bear = Animal( name='Baloo', species='bear', zoo=d.blijdorp )
 
-        d.mammoth = Animal( id=get_object_id(), name='Manny', species='mammoth' )
-        d.artis = Zoo( id=get_object_id(), name='Artis', animals=[ d.mammoth ] )
-        d.tiger = Animal( id=get_object_id(), name='Shere Khan', species='tiger', zoo=d.artis )
+        d.mammoth = Animal( id=ObjectId(), name='Manny', species='mammoth' )
+        d.artis = Zoo( id=ObjectId(), name='Artis', animals=[ d.mammoth ] )
+        d.tiger = Animal( id=ObjectId(), name='Shere Khan', species='tiger', zoo=d.artis )
 
         d.node = Node()
 
@@ -44,7 +45,7 @@ class RelationsTestCase( unittest.TestCase ):
         self.data = None
 
     def test_documents_without_relations( self ):
-        book = Book( id=get_object_id(), author=User( name='A' ), name='B' )
+        book = Book( id=ObjectId(), author=User( name='A' ), name='B' )
         page = Page()
 
         book.pages.append( page )
@@ -165,7 +166,7 @@ class RelationsTestCase( unittest.TestCase ):
         d = self.data
         
         # give 'artis' an office
-        office = Office( id=get_object_id() )
+        office = Office( id=ObjectId() )
         d.artis.office = office
 
         # 'office.tenant' has been set to 'artis' right away
@@ -240,11 +241,11 @@ class RelationsTestCase( unittest.TestCase ):
     def test_document_dbref_equality( self ):
         # If an document has been fetched from the database, it's relations can just contain DbRefs,
         # instead of Documents.
-        lion = DBRef( 'Animal', get_object_id() )
+        lion = DBRef( 'Animal', ObjectId() )
         lion_doc = Animal( id=lion.id, name="Simba" )
-        giraffe = DBRef( 'Animal', get_object_id() )
+        giraffe = DBRef( 'Animal', ObjectId() )
         giraffe_doc = Animal( id=giraffe.id, name='Giraffe' )
-        office = DBRef( 'Office', get_object_id() )
+        office = DBRef( 'Office', ObjectId() )
         office_doc = Office( id=office.id )
 
         self.assertTrue( lion_doc._equals( lion ) )
@@ -277,7 +278,7 @@ class RelationsTestCase( unittest.TestCase ):
 
 
         # Moving on; substituting DbRef with a Document (dereferencing) shouldn't mark a relation as changed
-        zoo = Zoo( id=get_object_id(), name="Dierenpark Emmen", animals=[ lion, giraffe ], office=office )
+        zoo = Zoo( id=ObjectId(), name="Dierenpark Emmen", animals=[ lion, giraffe ], office=office )
 
         self.assertFalse( zoo.get_changed_fields() )
 
@@ -294,7 +295,7 @@ class RelationsTestCase( unittest.TestCase ):
         d = self.data
 
         # Give `artis` an office as well, and persist it for `changed_relations`; it should not have 2 animals and an office
-        office = Office( id=get_object_id() )
+        office = Office( id=ObjectId() )
         d.artis.office = office
         d.artis.save( request=self.request )
 
@@ -329,4 +330,7 @@ class RelationsTestCase( unittest.TestCase ):
         # Updating a relation should memoize it, and thus remove it from `get_changed_relations`
         d.artis.update( self.request, 'animals' )
         self.assertNotIn( 'animals', d.artis.get_changed_fields() )
+
+    def test_create_document( self ):
+        pass
 

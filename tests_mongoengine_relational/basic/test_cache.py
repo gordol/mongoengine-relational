@@ -5,7 +5,8 @@ import unittest
 
 from mongoengine_relational import *
 
-from tests_mongoengine_relational.utils import Struct, get_object_id
+from tests_mongoengine_relational.utils import Struct
+from bson import ObjectId
 
 from pyramid import testing
 from pyramid.response import Response
@@ -30,9 +31,9 @@ class CacheTestCase( unittest.TestCase ):
         d.office = Office( tenant=d.blijdorp )
         d.bear = Animal( name='Baloo', species='bear', zoo=d.blijdorp )
 
-        d.mammoth = Animal( id=get_object_id(), name='Manny', species='mammoth' )
-        d.artis = Zoo( id=get_object_id(), name='Artis', animals=[ d.mammoth ] )
-        d.tiger = Animal( id=get_object_id(), name='Shere Khan', species='tiger', zoo=d.artis )
+        d.mammoth = Animal( id=ObjectId(), name='Manny', species='mammoth' )
+        d.artis = Zoo( id=ObjectId(), name='Artis', animals=[ d.mammoth ] )
+        d.tiger = Animal( id=ObjectId(), name='Shere Khan', species='tiger', zoo=d.artis )
 
         d.node = Node()
 
@@ -109,7 +110,7 @@ class CacheTestCase( unittest.TestCase ):
         self.assertTrue( d.artis in d.cache )
 
         # Get a list of docs (contains one DBRef, some Documents)
-        lion = DBRef( 'Animal', get_object_id() )
+        lion = DBRef( 'Animal', ObjectId() )
         lion_doc = Animal( id=lion.id, name="Simba" )
 
         self.assertTrue( d.tiger in d.artis.fetch( self.request, 'animals' ) )

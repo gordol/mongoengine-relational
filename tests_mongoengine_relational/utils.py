@@ -1,5 +1,7 @@
 from __future__ import print_function
 from __future__ import unicode_literals
+from mongoengine import Document
+from bson import ObjectId
 
 
 def monkeypatch_method(cls):
@@ -30,18 +32,6 @@ def monkeypatch_method(cls):
         return func
     return decorator
 
-
-from mongoengine import Document
-from bson import ObjectId
-
-last_id = 0
-
-def get_object_id():
-    global last_id
-    last_id += 1
-    return ObjectId( unicode( last_id ).zfill( 24 ) )
-
-
 class FauxSave( object ):
     '''
     An object that monkey patches several Document methods that require database interaction,
@@ -55,7 +45,7 @@ class FauxSave( object ):
     @monkeypatch_method( Document )
     def save( self, *args, **kwargs ):
         if self.pk is None:
-            self.pk = get_object_id()
+            self.pk = ObjectId()
 
     @monkeypatch_method( Document )
     def update(self, **kwargs):
