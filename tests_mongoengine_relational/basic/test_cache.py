@@ -34,8 +34,6 @@ class CacheTestCase( unittest.TestCase ):
         d.artis = Zoo( id=ObjectId(), name='Artis', animals=[ d.mammoth ] )
         d.tiger = Animal( id=ObjectId(), name='Shere Khan', species='tiger', zoo=d.artis )
 
-        d.node = Node()
-
         d.cache = DocumentCache( self.request )
 
 
@@ -102,18 +100,28 @@ class CacheTestCase( unittest.TestCase ):
         d.cache.add( d.tiger )
         # self.assertTrue( d.artis in d.cache._documents.values() )
 
-        self.assertEqual( d.artis, d.tiger.zoo )
         self.assertTrue( d.tiger in d.artis.animals )
+
+    def test_document_get_dbref( self ):
+        d = self.data
 
         # Get a list of docs (contains one DBRef, some Documents)
         lion = DBRef( 'Animal', ObjectId() )
         lion_doc = Animal( id=lion.id, name="Simba" )
 
-        # Add `lion` to `animals`, and `lion_doc` to the cache; the cache should be able to find it for `artis`
+        # Add `lion` to `animals`, and `lion_doc` to the cache; the cache should be able to find it
+        self.assertIsNone( lion_doc.zoo )
         d.artis.animals.append( lion )
         d.cache.add( lion_doc )
 
+        # Since `artis` doesn't have a `_request` property yet, it can't utilize the cache yet, and thus won't find `lion`
+        self.assertEquals( getattr( d.artis, '_request', None ), None )
+
         self.assertTrue( lion_doc in d.artis._fetch( self.request, 'animals' ) )
+
+        # `artis` has latched onto `request`, and can now find the cache
+        self.assertTrue( getattr( d.artis, '_request' ), self.request )
+        self.assertEquals( lion_doc.zoo, d.artis )
 
 
 

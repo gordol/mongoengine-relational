@@ -395,11 +395,6 @@ class RelationManagerMixin( object ):
         self._memo_hasmany = {}
         self._memo_simple = {}
 
-        # Remember previously related models, so DBRefs returned by functions
-        # like `get_changes_for_relation` can  be substituted for the actual
-        # (modified) Documents
-        self._memo_related_docs = set()
-
         for name, field in self._fields.iteritems():
             if isinstance( field, ReferenceField ) or isinstance( field, GenericReferenceField ):
                 self._memo_hasone[ name ] = None
@@ -491,7 +486,7 @@ class RelationManagerMixin( object ):
                 if isinstance( related_doc, dict ) and '_ref' in related_doc:
                     related_doc = related_doc[ '_ref' ]
 
-                self._memoize_documents( related_doc )
+                self._cache( related_doc )
                 self._memo_hasone[ name ] = related_doc
 
         for name in self._memo_hasmany.keys():
@@ -505,43 +500,12 @@ class RelationManagerMixin( object ):
                     else:
                         related_docs.add( related_doc )
 
-                self._memoize_documents( related_docs )
+                self._cache( related_docs )
                 self._memo_hasmany[ name ] = related_docs
 
         for name in self._memo_simple.keys():
             if not field_name or field_name == name:
                 self._memo_simple[ name ] = copy.copy( self._data[ name ] )
-
-    def _fetch( self, request, field_name ):
-        '''
-        Attempt to retrieve documents for a relation from cache.
-
-        @type request: pyramid.request.Request
-        @param field_name:
-        @type field_name: string
-        @param
-        '''
-        self._set_request( request )
-
-        data = self._data[ field_name ]
-        field = self._fields[ field_name ]
-        result = None
-
-        # A `GenericReferenceField` is stored as a dict containing a DBRef as `_ref`, and the Document class as `_cls`.
-        if isinstance( data, dict ) and '_ref' in data:
-            data = data[ '_ref' ]
-
-        if isinstance( data, DBRef ):
-            result = request.cache[ data ]
-            if isinstance( result, Document ):
-                self._data[ field_name ] = result
-        elif isinstance( data, list ) and hasattr( field, 'field' ):
-            # Only fetch documents from our document cache if all data items can be found
-            if all( obj in request.cache for obj in data ):
-                result = [ request.cache[ obj ] for obj in data ]
-                self._data[ field_name ] = result
-
-        return result
 
     def save( self, request=None, force_insert=False, validate=True, clean=True, write_concern=None,
               cascade=None, cascade_kwargs=None, _refs=None, **kwargs ):
@@ -882,7 +846,7 @@ class RelationManagerMixin( object ):
         if field_name in self._memo_hasone:
             field = self._fields[ field_name ]
             related_doc = self[ field_name ]
-            self._memoize_documents( related_doc )
+            self._cache( related_doc )
 
             if hasattr( field, 'related_name' ):
                 # Remove old value
@@ -901,7 +865,7 @@ class RelationManagerMixin( object ):
                 related_doc = new_value
 
                 if related_doc and isinstance( related_doc, RelationManagerMixin ):
-                    self._memoize_documents( related_doc )
+                    self._cache( related_doc )
                     related_data = getattr( related_doc, field.related_name )
 
                     if isinstance( related_data, ( list, tuple ) ):
@@ -932,8 +896,8 @@ class RelationManagerMixin( object ):
 
             current_related_docs = set( current_related_docs )
 
-            self._memoize_documents( previous_related_docs )
-            self._memoize_documents( current_related_docs )
+            self._cache( previous_related_docs )
+            self._cache( current_related_docs )
 
             # Only process fields that have a related_name set.
             if hasattr( field, 'related_name' ):
@@ -958,7 +922,7 @@ class RelationManagerMixin( object ):
         if not isinstance( value, Document ):
             return
 
-        self._memoize_documents( value )
+        self._cache( value )
 
         if field_name in self._memo_hasmany:
             field = self._fields[ field_name ]
@@ -977,7 +941,7 @@ class RelationManagerMixin( object ):
         if not isinstance( value, Document ):
             return
 
-        self._memoize_documents( value )
+        self._cache( value )
 
         if field_name in self._memo_hasmany:
             field = self._fields[ field_name ]
@@ -986,26 +950,84 @@ class RelationManagerMixin( object ):
                 # the other side of the relation is always a 'hasone'
                 value.update_hasone( field.related_name, None )
 
-    def _memoize_documents( self, docs ):
+    def _cache( self, docs ):
         '''
         Store the given document(s) in a memo
 
         @param docs:
         @type docs: Document or list or set or tuple
         '''
-        if isinstance( docs, Document ):
-            docs = [ docs ]
 
-        if isinstance( docs, ( list, set, tuple ) ):
-            documents = { doc for doc in docs if isinstance( doc, Document ) }
-            self._memo_related_docs.update( documents )
+        # Remember previously related models, so DBRefs returned by functions
+        # like `get_changes_for_relation` can  be substituted for the actual
+        # (modified) Documents where possible
+        if not getattr( self, '_request', None ):
+            if not getattr( self, '_memo_related_docs', None ):
+                self._memo_related_docs = set()
+
+            if isinstance( docs, Document ):
+                docs = [ docs ]
+
+            if isinstance( docs, ( list, set, tuple ) ):
+                documents = { doc for doc in docs if isinstance( doc, Document ) }
+                self._memo_related_docs.update( documents )
+        else:
+            self._request.cache.add( docs )
+
+    def _find( self, doc_or_ref ):
+        '''
+        Attempt to find a document (or dbref) in either the local memo, or the global request cache
+
+        @param doc_or_ref:
+        @type doc_or_ref: Document or DBRef
+        @return:
+        '''
+        pass
+
+    def _fetch( self, request, field_name ):
+        '''
+        Attempt to retrieve documents for a relation from cache.
+
+        @type request: pyramid.request.Request
+        @param field_name:
+        @type field_name: string
+        @param
+        '''
+        self._set_request( request )
+
+        data = self._data[ field_name ]
+        field = self._fields[ field_name ]
+        result = None
+
+        # A `GenericReferenceField` is stored as a dict containing a DBRef as `_ref`, and the Document class as `_cls`.
+        if isinstance( data, dict ) and '_ref' in data:
+            data = data[ '_ref' ]
+
+        if isinstance( data, DBRef ):
+            result = request.cache[ data ]
+            if isinstance( result, Document ):
+                self._data[ field_name ] = result
+        elif isinstance( data, list ) and hasattr( field, 'field' ):
+            # Only fetch documents from our document cache if all data items can be found
+            if all( obj in request.cache for obj in data ):
+                result = [ request.cache[ obj ] for obj in data ]
+                self._data[ field_name ] = result
+
+        return result
 
     def _set_request( self, request ):
         if not isinstance( request, Request ):
             raise ValueError( 'request={} should be an instance of `pyramid.request.Request`'.format( request ) )
         elif not hasattr( self, '_request' ):
             self._request = request
+
             request.cache.add( self )
+
+            if getattr( self, '_memo_related_docs', None ):
+                request.cache.add( self._memo_related_docs )
+                del self._memo_related_docs
+
+            #self.update_relations()
 
     #
     # Utility comparison functions, to compare a mix of DBRefs and Documents
