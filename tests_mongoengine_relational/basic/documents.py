@@ -33,6 +33,9 @@ class Zoo( RelationManagerMixin, Document ):
         self.on_change_animals_called = True
         print( ('animals updated; added={}, removed={}').format( added_docs, removed_docs ) )
 
+    def __unicode__( self ):
+        return unicode('{}: `{}` (id={})'.format( self.__class__.__name__, self.name, self.pk ))
+
 
 class Animal( RelationManagerMixin, Document ):
     name = StringField()
@@ -41,6 +44,9 @@ class Animal( RelationManagerMixin, Document ):
 
     def on_change_zoo( self, request, new_zoo, prev_zoo, **kwargs ):
         print( ('zoo updated; added={}, removed={}').format( new_zoo, prev_zoo ) )
+
+    def __unicode__( self ):
+        return unicode('{}: `{}` (id={})'.format( self.__class__.__name__, self.name, self.pk ))
 
 
 class Node( RelationManagerMixin, Document ):

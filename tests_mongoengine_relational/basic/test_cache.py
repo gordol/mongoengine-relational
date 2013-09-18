@@ -2,22 +2,26 @@ from __future__ import print_function
 from __future__ import unicode_literals
 
 import unittest
+import mongoengine
 
 from mongoengine_relational import *
 
-from tests_mongoengine_relational.utils import Struct
 from bson import DBRef, ObjectId
 
 from pyramid import testing
-from pyramid.response import Response
 from pyramid.request import Request
 
 from tests_mongoengine_relational.basic.documents import *
+from tests_mongoengine_relational.utils import Struct
 
 
 class CacheTestCase( unittest.TestCase ):
 
     def setUp( self ):
+        mongoengine.register_connection( mongoengine.DEFAULT_CONNECTION_NAME, 'mongoengine_relational_test' )
+        c = mongoengine.connection.get_connection()
+        c.drop_database( 'mongoengine_relational_test' )
+
         # Setup application/request config
         self.request = Request.blank( '/api/v1/' )
         self.config = testing.setUp( request=self.request )
@@ -69,7 +73,7 @@ class CacheTestCase( unittest.TestCase ):
 
         # A document isn't cached if it doesn't have an id
         d.cache.add( d.blijdorp )
-        self.assertEquals( None, d.cache[ d.blijdorp ] )
+        self.assertFalse( d.blijdorp in d.cache._documents.values() )
 
         d.cache.add( d.mammoth )
         self.assertEquals( d.mammoth, d.cache[ d.mammoth.pk ] )
@@ -130,6 +134,8 @@ class CacheTestCase( unittest.TestCase ):
         self.assertFalse( lion_doc in d.artis.animals )
         d.artis._set_request( self.request )
         self.assertTrue( lion_doc in d.artis.animals )
+
+        print( d.artis, lion_doc._data['zoo'])
 
         # `artis` has latched onto `request`, and can now find the cache
         self.assertTrue( d.artis._request, self.request )

@@ -2,8 +2,8 @@ from __future__ import print_function
 from __future__ import unicode_literals
 
 import unittest
+import mongoengine
 
-from tests_mongoengine_relational.utils import Struct
 from bson import DBRef, ObjectId
 
 from pyramid import testing
@@ -12,11 +12,16 @@ from pyramid.request import Request
 from mongoengine_relational.relationalmixin import set_difference
 
 from tests_mongoengine_relational.basic.documents import *
+from tests_mongoengine_relational.utils import Struct
 
 
 class RelationsTestCase( unittest.TestCase ):
 
     def setUp( self ):
+        mongoengine.register_connection( mongoengine.DEFAULT_CONNECTION_NAME, 'mongoengine_relational_test' )
+        c = mongoengine.connection.get_connection()
+        c.drop_database( 'mongoengine_relational_test' )
+
         # Setup application/request config
         self.request = Request.blank( '/api/v1/' )
 
@@ -28,7 +33,7 @@ class RelationsTestCase( unittest.TestCase ):
         # Setup data
         d = self.data = Struct()
 
-        d.blijdorp = Zoo( name='Blijdorp' )
+        d.blijdorp = Zoo( id=ObjectId(), name='Blijdorp' )
         d.office = Office( tenant=d.blijdorp )
         d.bear = Animal( name='Baloo', species='bear', zoo=d.blijdorp )
 
@@ -139,7 +144,8 @@ class RelationsTestCase( unittest.TestCase ):
         self.assertEqual( d.bear.zoo, d.artis )
 
         # after saving 'artis', the 'zoo' on 'bear' should be set to 'artis'
-        d.artis.save( request=self.request )
+        d.bear.save( self.request )
+        d.artis.save( self.request )
 
         self.assertEqual( 0, len( d.artis.get_changed_fields() ) )
         self.assertEqual( d.bear.zoo, d.artis )
@@ -203,7 +209,7 @@ class RelationsTestCase( unittest.TestCase ):
         self.assertEqual( office, d.blijdorp.office )
         self.assertNotEqual( office, d.artis.office )
 
-    def test_get_changed_relations( self ):
+    def get_changed_fields( self ):
         d = self.data
 
         self.assertIn( 'zoo', d.bear.get_changed_fields() )

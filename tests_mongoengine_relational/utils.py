@@ -32,35 +32,35 @@ def monkeypatch_method(cls):
         return func
     return decorator
 
-class FauxSave( object ):
-    '''
-    An object that monkey patches several Document methods that require database interaction,
-    so that they doesn't actually persist objects in the database (useful for testing).
-    Document.__str__ is also overridden for more useful debug output if __unicode__ isn't overriden
-    in implementing documents.
-    '''
-
-    @monkeypatch_method( Document )
-    def save( self, *args, **kwargs ):
-        if self.pk is None:
-            self.pk = ObjectId()
-
-    @monkeypatch_method( Document )
-    def update(self, **kwargs):
-        pass
-
-    @monkeypatch_method( Document )
-    def delete(self, safe=False):
-        pass
-
-    @monkeypatch_method( Document )
-    def __str__( self ):
-        name = self.__class__.__name__
-
-        if hasattr( self, 'name' ):
-            name += ':' + unicode( self.name )
-
-        return '{} ({}@{})'.format( name, self.pk, id( self ) )
+# class FauxSave( object ):
+#     '''
+#     An object that monkey patches several Document methods that require database interaction,
+#     so that they doesn't actually persist objects in the database (useful for testing).
+#     Document.__str__ is also overridden for more useful debug output if __unicode__ isn't overriden
+#     in implementing documents.
+#     '''
+#
+#     @monkeypatch_method( Document )
+#     def save( self, *args, **kwargs ):
+#         if self.pk is None:
+#             self.pk = ObjectId()
+#
+#     @monkeypatch_method( Document )
+#     def update(self, **kwargs):
+#         pass
+#
+#     @monkeypatch_method( Document )
+#     def delete(self, safe=False):
+#         pass
+#
+#     @monkeypatch_method( Document )
+#     def __str__( self ):
+#         name = self.__class__.__name__
+#
+#         if hasattr( self, 'name' ):
+#             name += ':' + unicode( self.name )
+#
+#         return '{} ({}@{})'.format( name, self.pk, id( self ) )
 
 
 class Struct( object ):
