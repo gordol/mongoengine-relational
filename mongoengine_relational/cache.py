@@ -63,7 +63,7 @@ class DocumentCache( object ):
             if not str( object_id ) in self._documents and isinstance( id, Document ) and id.pk:
                 self[ id.pk ] = id
 
-            return self._documents[ str( object_id ) ]
+            return id if isinstance( id, Document ) else self._documents[ str( object_id ) ]
         except KeyError:
             return default
 
@@ -106,6 +106,7 @@ class DocumentCache( object ):
                             self[ obj.pk ] = obj
 
                     docs.append( obj )
+
 
             return docs
 
