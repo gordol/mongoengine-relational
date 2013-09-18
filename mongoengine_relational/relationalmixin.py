@@ -848,7 +848,7 @@ class RelationManagerMixin( object ):
         if field_name in self._memo_hasone:
             field = self._fields[ field_name ]
             related_doc = self[ field_name ]
-            self._cache.add( related_doc )
+            self._cache.add( [ related_doc, new_value ] )
 
             if hasattr( field, 'related_name' ):
                 # Remove old value
@@ -867,7 +867,6 @@ class RelationManagerMixin( object ):
                 related_doc = new_value
 
                 if related_doc and isinstance( related_doc, RelationManagerMixin ):
-                    self._cache.add( related_doc )
                     related_data = getattr( related_doc, field.related_name )
 
                     if isinstance( related_data, ( list, tuple ) ):
@@ -896,15 +895,15 @@ class RelationManagerMixin( object ):
             else:
                 previous_related_docs = set( previous_related_docs )
 
-            current_related_docs = set( current_related_docs )
-
-            previous_related_docs = self._cache.add( previous_related_docs )
-            current_related_docs = self._cache.add( current_related_docs )
+            previous_related_docs = [ self._cache[ doc ] for doc in previous_related_docs ]
+            current_related_docs = [ self._cache[ doc ] for doc in set( current_related_docs ) ]
 
             # Only process fields that have a related_name set.
             if hasattr( field, 'related_name' ):
                 added_docs = set_difference( current_related_docs, previous_related_docs )
                 removed_docs = set_difference( previous_related_docs, current_related_docs )
+
+                # print( 'update_hasmany on `{}`: current_related_docs=`{}`, previous_related_docs=`{}`, added_docs=`{}`, removed_docs=`{}'.format( self, current_related_docs, previous_related_docs, added_docs, removed_docs ) )
 
                 for related_doc in removed_docs:
                     if isinstance( related_doc, RelationManagerMixin ):
