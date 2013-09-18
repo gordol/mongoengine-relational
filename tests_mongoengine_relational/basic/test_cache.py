@@ -54,6 +54,16 @@ class CacheTestCase( unittest.TestCase ):
         # Only one `DocumentCache` should be instantiated per request
         self.assertRaises( RuntimeError, DocumentCache, self.request )
 
+        # Documents keep their local cache until they get access to the global cache
+        a1 = Animal()
+        self.assertTrue( isinstance( a1._cache, DocumentCache ) )
+        self.assertFalse( a1._cache == d.cache )
+        a1._set_request( self.request )
+        self.assertTrue( a1._cache == d.cache )
+
+        a2 = Animal( request=self.request )
+        self.assertTrue( a2._cache == d.cache )
+
     def test_add_remove_documents( self ):
         d = self.data
 
@@ -115,12 +125,14 @@ class CacheTestCase( unittest.TestCase ):
         d.cache.add( lion_doc )
 
         # Since `artis` doesn't have a `_request` property yet, it can't utilize the cache yet, and thus won't find `lion`
-        self.assertEquals( getattr( d.artis, '_request', None ), None )
+        self.assertTrue( not hasattr( d.artis, '_request' ) or not d.artis._request )
 
-        self.assertTrue( lion_doc in d.artis._fetch( self.request, 'animals' ) )
+        self.assertFalse( lion_doc in d.artis.animals )
+        d.artis._set_request( self.request )
+        self.assertTrue( lion_doc in d.artis.animals )
 
         # `artis` has latched onto `request`, and can now find the cache
-        self.assertTrue( getattr( d.artis, '_request' ), self.request )
+        self.assertTrue( d.artis._request, self.request )
         self.assertEquals( lion_doc.zoo, d.artis )
 
 

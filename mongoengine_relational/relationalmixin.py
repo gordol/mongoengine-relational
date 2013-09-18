@@ -12,6 +12,8 @@ from bson import DBRef, ObjectId, SON
 
 import copy
 
+from .cache import DocumentCache
+
 from kitchen.text.converters import getwriter
 import sys
 UTF8Writer = getwriter('utf8')
@@ -168,8 +170,8 @@ class ReferenceField( ReferenceField ):
         if self._auto_dereference and isinstance( value, DBRef ):
             result = None
 
-            if hasattr( instance, '_request' ):
-                result = instance._fetch( instance._request, self.name )
+            if hasattr( instance, '_cache' ):
+                result = instance._fetch( self.name )
 
             if value and not result:
                 value = self.document_type._get_db().dereference( value )
@@ -177,8 +179,8 @@ class ReferenceField( ReferenceField ):
                     result = self.document_type._from_son( value )
                     instance._data[self.name] = result
 
-                    if hasattr( instance, '_request' ):
-                        instance._request.cache.add( result )
+                    if hasattr( instance, '_cache' ):
+                        instance._cache.add( result )
 
         return super( ReferenceField, self ).__get__( instance, owner )
 
@@ -208,15 +210,15 @@ class GenericReferenceField( GenericReferenceField ):
         if self._auto_dereference and isinstance( value, (dict, SON) ):
             result = None
 
-            if hasattr( instance, '_request' ):
-                result = instance._fetch( instance._request, self.name )
+            if hasattr( instance, '_cache' ):
+                result = instance._fetch( self.name )
 
             if value and not result:
                 result = self.dereference( value )
                 instance._data[self.name] = result
 
-                if hasattr( instance, '_request' ):
-                    instance._request.cache.add( result )
+                if hasattr( instance, '_cache' ):
+                    instance._cache.add( result )
 
         return super( GenericReferenceField, self ).__get__( instance, owner )
 
@@ -271,9 +273,9 @@ class ListField( ListField ):
             # If we have raw values, obtain documents; either from cache, or by dereferencing
             if self._auto_dereference and instance._initialised and isinstance( value, BaseList ) and not value._dereferenced:
                 # If we can find all objects in the cache, use it. Otherwise, retrieve all of them.
-                if hasattr( instance, '_request' ) and all( obj in instance._request.cache for obj in value ):
+                if hasattr( instance, '_cache' ) and all( obj in instance._cache for obj in value ):
                     for index, object in enumerate( value ):
-                        super( BaseList, value ).__setitem__( index, instance._request.cache[ object ] )
+                        super( BaseList, value ).__setitem__( index, instance._cache[ object ] )
                 else:
                     value = _dereference(
                         value, max_depth=1, instance=instance, name=self.name
@@ -282,15 +284,15 @@ class ListField( ListField ):
 
                     # For the list of retrieved documents, replace already known entries with cached documents.
                     # Add others to the cache.
-                    if hasattr( instance, '_request' ):
+                    if hasattr( instance, '_cache' ):
                         for index, document in enumerate( value ):
-                            if document in instance._request.cache:
-                                document = instance._request.cache[ document ]
+                            if document in instance._cache:
+                                document = instance._cache[ document ]
                                 # Be careful not to trigger `BaseList` append/remove again,
                                 # since this'll get us an infinite loop
                                 super( BaseList, value ).__setitem__( index, document )
                             else:
-                                instance._request.cache.add( document )
+                                instance._cache.add( document )
 
                 instance._data[self.name] = value
         else:
@@ -348,9 +350,9 @@ class RelationManagerMixin( object ):
         self._init_memo()
 
         if 'request' in kwargs:
-            self._request = kwargs[ 'request' ]
-
-        if self.pk:
+            self._set_request( kwargs[ 'request' ] )
+        else:
+            self._cache = DocumentCache()
             # If initial relations were set, add these to related models
             self.update_relations()
 
@@ -486,7 +488,7 @@ class RelationManagerMixin( object ):
                 if isinstance( related_doc, dict ) and '_ref' in related_doc:
                     related_doc = related_doc[ '_ref' ]
 
-                self._cache( related_doc )
+                self._cache.add( related_doc )
                 self._memo_hasone[ name ] = related_doc
 
         for name in self._memo_hasmany.keys():
@@ -500,7 +502,7 @@ class RelationManagerMixin( object ):
                     else:
                         related_docs.add( related_doc )
 
-                self._cache( related_docs )
+                self._cache.add( related_docs )
                 self._memo_hasmany[ name ] = related_docs
 
         for name in self._memo_simple.keys():
@@ -736,7 +738,7 @@ class RelationManagerMixin( object ):
         for doc_or_ref in added_docs:
             if isinstance( doc_or_ref, DBRef ):
                 try:
-                    doc = [ doc for doc in self._memo_related_docs if doc._equals( doc_or_ref ) ][ 0 ]
+                    doc = self._cache[ doc_or_ref ]
                     added_docs.remove( doc_or_ref )
                     added_docs.add( doc )
                 except IndexError as e:
@@ -745,7 +747,7 @@ class RelationManagerMixin( object ):
         for doc_or_ref in removed_docs:
             if isinstance( doc_or_ref, DBRef ):
                 try:
-                    doc = [ doc for doc in self._memo_related_docs if doc._equals( doc_or_ref ) ][ 0 ]
+                    doc = self._cache[ doc_or_ref ]
                     removed_docs.remove( doc_or_ref )
                     removed_docs.add( doc )
                 except IndexError as e:
@@ -824,7 +826,7 @@ class RelationManagerMixin( object ):
         # DBRefs, access fields by `_data` to avoid getting caught up in an
         # endless `dereferencing` loop.
         for field_name in self._memo_hasone.keys():
-            related_doc = self._data[ field_name ]
+            related_doc = self._cache[ self._data[ field_name ] ]
             # print( 'updating `{0}.{1}`, related_doc=`{2}`'.format( self, field_name, related_doc ) )
             if isinstance( related_doc, RelationManagerMixin ):
                 self.update_hasone( field_name, related_doc )
@@ -846,7 +848,7 @@ class RelationManagerMixin( object ):
         if field_name in self._memo_hasone:
             field = self._fields[ field_name ]
             related_doc = self[ field_name ]
-            self._cache( related_doc )
+            self._cache.add( related_doc )
 
             if hasattr( field, 'related_name' ):
                 # Remove old value
@@ -865,7 +867,7 @@ class RelationManagerMixin( object ):
                 related_doc = new_value
 
                 if related_doc and isinstance( related_doc, RelationManagerMixin ):
-                    self._cache( related_doc )
+                    self._cache.add( related_doc )
                     related_data = getattr( related_doc, field.related_name )
 
                     if isinstance( related_data, ( list, tuple ) ):
@@ -896,8 +898,8 @@ class RelationManagerMixin( object ):
 
             current_related_docs = set( current_related_docs )
 
-            self._cache( previous_related_docs )
-            self._cache( current_related_docs )
+            previous_related_docs = self._cache.add( previous_related_docs )
+            current_related_docs = self._cache.add( current_related_docs )
 
             # Only process fields that have a related_name set.
             if hasattr( field, 'related_name' ):
@@ -922,7 +924,7 @@ class RelationManagerMixin( object ):
         if not isinstance( value, Document ):
             return
 
-        self._cache( value )
+        self._cache.add( value )
 
         if field_name in self._memo_hasmany:
             field = self._fields[ field_name ]
@@ -941,7 +943,7 @@ class RelationManagerMixin( object ):
         if not isinstance( value, Document ):
             return
 
-        self._cache( value )
+        self._cache.add( value )
 
         if field_name in self._memo_hasmany:
             field = self._fields[ field_name ]
@@ -949,30 +951,6 @@ class RelationManagerMixin( object ):
             if hasattr( field, 'related_name' ):
                 # the other side of the relation is always a 'hasone'
                 value.update_hasone( field.related_name, None )
-
-    def _cache( self, docs ):
-        '''
-        Store the given document(s) in a memo
-
-        @param docs:
-        @type docs: Document or list or set or tuple
-        '''
-
-        # Remember previously related models, so DBRefs returned by functions
-        # like `get_changes_for_relation` can  be substituted for the actual
-        # (modified) Documents where possible
-        if not getattr( self, '_request', None ):
-            if not getattr( self, '_memo_related_docs', None ):
-                self._memo_related_docs = set()
-
-            if isinstance( docs, Document ):
-                docs = [ docs ]
-
-            if isinstance( docs, ( list, set, tuple ) ):
-                documents = { doc for doc in docs if isinstance( doc, Document ) }
-                self._memo_related_docs.update( documents )
-        else:
-            self._request.cache.add( docs )
 
     def _find( self, doc_or_ref ):
         '''
@@ -984,7 +962,7 @@ class RelationManagerMixin( object ):
         '''
         pass
 
-    def _fetch( self, request, field_name ):
+    def _fetch( self, field_name ):
         '''
         Attempt to retrieve documents for a relation from cache.
 
@@ -993,8 +971,6 @@ class RelationManagerMixin( object ):
         @type field_name: string
         @param
         '''
-        self._set_request( request )
-
         data = self._data[ field_name ]
         field = self._fields[ field_name ]
         result = None
@@ -1004,13 +980,13 @@ class RelationManagerMixin( object ):
             data = data[ '_ref' ]
 
         if isinstance( data, DBRef ):
-            result = request.cache[ data ]
+            result = self._cache[ data ]
             if isinstance( result, Document ):
                 self._data[ field_name ] = result
         elif isinstance( data, list ) and hasattr( field, 'field' ):
             # Only fetch documents from our document cache if all data items can be found
-            if all( obj in request.cache for obj in data ):
-                result = [ request.cache[ obj ] for obj in data ]
+            if all( obj in self._cache for obj in data ):
+                result = [ self._cache[ obj ] for obj in data ]
                 self._data[ field_name ] = result
 
         return result
@@ -1023,11 +999,13 @@ class RelationManagerMixin( object ):
 
             request.cache.add( self )
 
-            if getattr( self, '_memo_related_docs', None ):
-                request.cache.add( self._memo_related_docs )
-                del self._memo_related_docs
+            if hasattr( self, '_cache' ):
+                request.cache.add( self._cache._documents.values() )
+                self._cache._documents.clear()
 
-            #self.update_relations()
+            self._cache = request.cache
+
+            self.update_relations()
 
     #
     # Utility comparison functions, to compare a mix of DBRefs and Documents

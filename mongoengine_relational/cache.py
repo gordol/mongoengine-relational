@@ -9,11 +9,12 @@ from bson import DBRef, ObjectId
 
 
 class DocumentCache( object ):
-    def __init__( self, request ):
-        if not hasattr( request, 'cache' ):
-            request.cache = self
-        else:
-            raise RuntimeError( 'A `DocumentCache` already exists; only one should be created per request.' )
+    def __init__( self, request=None ):
+        if request:
+            if not hasattr( request, 'cache' ):
+                request.cache = self
+            else:
+                raise RuntimeError( 'A `DocumentCache` already exists; only one should be created per request.' )
 
         self.request = request
         self._documents = {}
@@ -34,7 +35,8 @@ class DocumentCache( object ):
             self._documents[ str( id ) ] = value
 
             # Set the `request` on the Document, so it can take advantage of the cache itself
-            value._request = self.request
+            if self.request:
+                value._set_request( self.request )
 
             return value
 
@@ -43,11 +45,13 @@ class DocumentCache( object ):
 
     def __contains__( self, id ):
         object_id = id.id if isinstance( id, ( DBRef, Document ) ) else id
+        doc = self[ str( object_id ) ]
 
-        if isinstance( id, Document ) and id.pk:
+        if not doc and isinstance( id, Document ) and id.pk:
             self[ id.pk ] = id
+            doc = id
 
-        return self[ str( object_id ) ] is not None
+        return doc is not None
 
     def __len__(self):
         return len( self._documents )
@@ -56,7 +60,7 @@ class DocumentCache( object ):
         try:
             object_id = id.id if isinstance( id, ( DBRef, Document ) ) else id
 
-            if isinstance( id, Document ) and id.pk:
+            if not str( object_id ) in self._documents and isinstance( id, Document ) and id.pk:
                 self[ id.pk ] = id
 
             return self._documents[ str( object_id ) ]
@@ -73,7 +77,8 @@ class DocumentCache( object ):
         '''
         if isinstance( documents, Document ):
             # Set the `request` on the Document, so it can take advantage of the cache itself
-            documents._request = self.request
+            if self.request:
+                documents._set_request( self.request )
 
             # If `documents` doesn't have a `pk`, continue.
             # If it does have a `pk`, set it as the cache entry for this doc if there's no entry yet,
@@ -89,16 +94,17 @@ class DocumentCache( object ):
         elif isinstance( documents, ( QuerySet, collections.Iterable ) ):
             docs = []
             for obj in documents:
-                # Set the `request` on the Document, so it can take advantage of the cache itself
-                obj._request = self.request
-
-                if obj.pk:
-                    if obj in self:
-                        obj = self[ obj.pk ]
-                    else:
-                        self[ obj.pk ] = obj
-
                 if isinstance( obj, Document ):
+                    # Set the `request` on the Document, so it can take advantage of the cache itself
+                    if self.request:
+                        obj._set_request( self.request )
+
+                    if obj.pk:
+                        if obj in self:
+                            obj = self[ obj.pk ]
+                        else:
+                            self[ obj.pk ] = obj
+
                     docs.append( obj )
 
             return docs
