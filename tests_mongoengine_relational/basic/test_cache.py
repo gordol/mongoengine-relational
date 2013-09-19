@@ -73,7 +73,7 @@ class CacheTestCase( unittest.TestCase ):
 
         # A document isn't cached if it doesn't have an id
         d.cache.add( d.blijdorp )
-        self.assertFalse( d.blijdorp in d.cache._documents.values() )
+        self.assertFalse( d.blijdorp in d.cache )
 
         d.cache.add( d.mammoth )
         self.assertEquals( d.mammoth, d.cache[ d.mammoth.pk ] )
@@ -85,19 +85,19 @@ class CacheTestCase( unittest.TestCase ):
 
         # Test contains, len
         self.assertFalse( d.blijdorp in d.cache )
-        self.assertTrue( d.tiger in d.cache._documents.values() )
+        self.assertTrue( d.tiger in d.cache )
 
         self.assertEqual( len( d.cache ), 3 )
 
         # Test removal of single items, then removal of lists
         del d.cache[ d.tiger ]
-        self.assertNotIn( d.tiger, d.cache._documents.values() )
+        self.assertNotIn( d.tiger, d.cache )
 
         d.cache.remove( d.mammoth.id )
-        self.assertNotIn( d.mammoth, d.cache._documents.values() )
+        self.assertNotIn( d.mammoth, d.cache )
 
         d.cache.remove( [ d.artis ] )
-        self.assertNotIn( d.artis, d.cache._documents.values() )
+        self.assertNotIn( d.artis, d.cache )
 
     def test_document_get( self ):
         d = self.data
@@ -106,13 +106,15 @@ class CacheTestCase( unittest.TestCase ):
         self.assertEqual( d.artis.name, 'Artis' )
 
         # Trying to get a doc that isn't in the cache yet should add it
-        self.assertFalse( d.dolphin in d.cache._documents.values() )
+        self.assertFalse( d.dolphin in d.cache )
+        dolphin = d.cache[ d.dolphin ]
         self.assertTrue( d.dolphin in d.cache )
+        self.assertTrue( id( dolphin ) == id( d.dolphin ) )
 
         # Add `tiger` to the cache; its zoo isn't in there before, but should appear since `tiger` now knows the request
-        self.assertFalse( d.artis in d.cache._documents.values() )
+        self.assertFalse( d.artis in d.cache )
         d.cache.add( d.tiger )
-        # self.assertTrue( d.artis in d.cache._documents.values() )
+        # self.assertTrue( d.artis in d.cache )
 
         self.assertTrue( d.tiger in d.artis.animals )
 

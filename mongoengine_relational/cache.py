@@ -45,13 +45,7 @@ class DocumentCache( object ):
 
     def __contains__( self, id ):
         object_id = id.id if isinstance( id, ( DBRef, Document ) ) else id
-        doc = self[ str( object_id ) ]
-
-        if not doc and isinstance( id, Document ) and id.pk:
-            self[ id.pk ] = id
-            doc = id
-
-        return doc is not None
+        return self[ str( object_id ) ] is not None
 
     def __len__(self):
         return len( self._documents )

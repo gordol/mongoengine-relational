@@ -233,7 +233,6 @@ class RelationsTestCase( unittest.TestCase ):
         d.artis.save( request=self.request )
         self.assertEqual( d.artis.on_change_name_called, True )
 
-
     def test_update_managed_relations( self ):
         d = self.data
 
