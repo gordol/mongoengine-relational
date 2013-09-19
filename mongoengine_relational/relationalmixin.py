@@ -963,7 +963,6 @@ class RelationManagerMixin( object ):
         '''
         Attempt to retrieve documents for a relation from cache.
 
-        @type request: pyramid.request.Request
         @param field_name:
         @type field_name: string
         @param
