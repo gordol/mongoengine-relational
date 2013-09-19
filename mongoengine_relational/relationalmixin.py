@@ -249,20 +249,18 @@ class ListField( ListField ):
         # We only care about lists that contain documents/references here.
         # Code is adapted from `ComplexBaseField.__get__`.
         if isinstance( self.field, ( GenericReferenceField, ReferenceField ) ):
-            dereference = (self._auto_dereference and
-                       (self.field is None or isinstance(self.field,
-                        (GenericReferenceField, ReferenceField))))
-
+            # dereference = self._auto_dereference
             _dereference = _import_class("DeReference")()
 
             self._auto_dereference = instance._fields[self.name]._auto_dereference
-            if instance._initialised and dereference:
-                instance._data[self.name] = _dereference(
-                    instance._data.get(self.name), max_depth=1, instance=instance,
-                    name=self.name
-                )
+            # If we ever uncomment the piece below, make sure to include something like `if hasattr( instance, '_cache' ) and all( instance._cache[ doc ] for doc in value ): pass`
+            # if instance._initialised and dereference:
+            #     instance._data[self.name] = _dereference(
+            #         instance._data.get(self.name), max_depth=1, instance=instance,
+            #         name=self.name
+            #     )
 
-            # Skip `ComplexBaseField`; retrieve document data from `BaseField`
+            # Skip `ComplexBaseField`, we're modifying that code right here; retrieve document data from `BaseField`
             value = super( ComplexBaseField, self ).__get__( instance, owner )
 
             # Convert lists to BaseList so we can watch for any changes on them
@@ -273,9 +271,9 @@ class ListField( ListField ):
             # If we have raw values, obtain documents; either from cache, or by dereferencing
             if self._auto_dereference and instance._initialised and isinstance( value, BaseList ) and not value._dereferenced:
                 # If we can find all objects in the cache, use it. Otherwise, retrieve all of them.
-                if hasattr( instance, '_cache' ) and all( obj in instance._cache for obj in value ):
-                    for index, object in enumerate( value ):
-                        super( BaseList, value ).__setitem__( index, instance._cache[ object ] )
+                if hasattr( instance, '_cache' ) and all( instance._cache[ doc ] for doc in value ):
+                    for index, doc in enumerate( value ):
+                        super( BaseList, value ).__setitem__( index, instance._cache[ doc ] )
                 else:
                     value = _dereference(
                         value, max_depth=1, instance=instance, name=self.name
@@ -285,14 +283,14 @@ class ListField( ListField ):
                     # For the list of retrieved documents, replace already known entries with cached documents.
                     # Add others to the cache.
                     if hasattr( instance, '_cache' ):
-                        for index, document in enumerate( value ):
-                            if document in instance._cache:
-                                document = instance._cache[ document ]
+                        for index, doc in enumerate( value ):
+                            if doc in instance._cache:
+                                doc = instance._cache[ doc ]
                                 # Be careful not to trigger `BaseList` append/remove again,
                                 # since this'll get us an infinite loop
-                                super( BaseList, value ).__setitem__( index, document )
+                                super( BaseList, value ).__setitem__( index, doc )
                             else:
-                                instance._cache.add( document )
+                                instance._cache.add( doc )
 
                 instance._data[self.name] = value
         else:
@@ -984,7 +982,7 @@ class RelationManagerMixin( object ):
                 self._data[ field_name ] = result
         elif isinstance( data, list ) and hasattr( field, 'field' ):
             # Only fetch documents from our document cache if all data items can be found
-            if all( obj in self._cache for obj in data ):
+            if all( self._cache[ obj ] for obj in data ):
                 result = [ self._cache[ obj ] for obj in data ]
                 self._data[ field_name ] = result
 
