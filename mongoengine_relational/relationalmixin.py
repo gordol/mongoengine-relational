@@ -990,7 +990,7 @@ class RelationManagerMixin( object ):
 
         return result
 
-    def _set_request( self, request ):
+    def _set_request( self, request, update_relations=True ):
         if not isinstance( request, Request ):
             raise ValueError( 'request={} should be an instance of `pyramid.request.Request`'.format( request ) )
         elif not hasattr( self, '_request' ):
@@ -1004,7 +1004,8 @@ class RelationManagerMixin( object ):
 
             self._cache = request.cache
 
-            self.update_relations()
+            if update_relations:
+                self.update_relations()
 
     #
     # Utility comparison functions, to compare a mix of DBRefs and Documents

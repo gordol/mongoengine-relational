@@ -36,7 +36,7 @@ class DocumentCache( object ):
 
             # Set the `request` on the Document, so it can take advantage of the cache itself
             if self.request:
-                value._set_request( self.request )
+                value._set_request( self.request, update_relations=False )
 
             return value
 
@@ -78,7 +78,7 @@ class DocumentCache( object ):
         if isinstance( documents, Document ):
             # Set the `request` on the Document, so it can take advantage of the cache itself
             if self.request:
-                documents._set_request( self.request )
+                documents._set_request( self.request, update_relations=False )
 
             # If `documents` doesn't have a `pk`, continue.
             # If it does have a `pk`, set it as the cache entry for this doc if there's no entry yet,
@@ -97,7 +97,7 @@ class DocumentCache( object ):
                 if isinstance( obj, Document ):
                     # Set the `request` on the Document, so it can take advantage of the cache itself
                     if self.request:
-                        obj._set_request( self.request )
+                        obj._set_request( self.request, update_relations=False )
 
                     if obj.pk:
                         if obj in self:
@@ -125,4 +125,3 @@ class DocumentCache( object ):
         elif isinstance( documents, ( list, set, QuerySet ) ):
             for obj in documents:
                 self._documents.pop( str( obj.pk ) )
-
