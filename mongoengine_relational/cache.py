@@ -104,6 +104,9 @@ class DocumentCache( object ):
 
             return docs
 
+        else:
+            return None
+
     def remove( self, documents ):
         '''
         Remove one or more documents from the cache.
