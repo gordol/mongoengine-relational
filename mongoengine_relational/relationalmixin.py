@@ -893,8 +893,9 @@ class RelationManagerMixin( object ):
             else:
                 previous_related_docs = set( previous_related_docs )
 
-            previous_related_docs = [ self._cache[ doc ] for doc in previous_related_docs ]
-            current_related_docs = [ self._cache[ doc ] for doc in set( current_related_docs ) ]
+            # Only compare actual documents; DBRefs get ignored here
+            previous_related_docs = filter( None, [ self._cache[ doc ] for doc in previous_related_docs ] )
+            current_related_docs = filter( None, [ self._cache[ doc ] for doc in set( current_related_docs ) ] )
 
             # Only process fields that have a related_name set.
             if hasattr( field, 'related_name' ):
