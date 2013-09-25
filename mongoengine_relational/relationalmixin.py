@@ -681,7 +681,7 @@ class RelationManagerMixin( object ):
         for field_name, previous_related_doc in self._memo_hasone.iteritems():
             related_doc = self._data[ field_name ]
 
-            if self._nequals( related_doc, previous_related_doc ):
+            if nequals( related_doc, previous_related_doc ):
                 changed_fields.add( field_name )
 
         # For hasmany, check if different values exist in the old set compared
@@ -1005,39 +1005,43 @@ class RelationManagerMixin( object ):
             if update_relations:
                 self.update_relations()
 
-    #
-    # Utility comparison functions, to compare a mix of DBRefs and Documents
-    #
-
-    def _equals( self, doc_or_ref1, doc_or_ref2=False ):
-        # `None` is also valid input, so only replace `doc_or_ref2` with self if it's exactly `False`
-        if doc_or_ref2 is False:
-            doc_or_ref2 = self
-
-        return equals( doc_or_ref1, doc_or_ref2 )
-
-    def _nequals( self, doc_or_ref1, doc_or_ref2=False ):
-        return nequals( doc_or_ref1, doc_or_ref2 )
-
 
 def set_difference( first_set, second_set ):
     '''
     Determine the difference between two sets containing a (possible) mixture of Documents and DBRefs.
     The `second_set` is subtracted from the `first_set`.
     @param first_set:
+    @type first_set: set
     @param second_set:
     @return:
     '''
+
+    second_set_ids = set()
+    for doc_or_ref in second_set:
+        if doc_or_ref:
+            if isinstance( doc_or_ref, Document ):
+                second_set_ids.add(doc_or_ref.pk)
+            elif isinstance( doc_or_ref, DBRef ):
+                second_set_ids.add(doc_or_ref.id)
+            # elif isinstance( doc_or_ref, ObjectId ):
+            #     second_set_ids.add(doc_or_ref)
+
     diff = set()
     for doc_or_ref in first_set:
-        match = False
-        for other_doc_or_ref in second_set:
-            if equals( doc_or_ref, other_doc_or_ref ):
-                match = True
-                break
+        if doc_or_ref:
+            match = False
+            if isinstance(doc_or_ref, Document):
+                if doc_or_ref.pk in second_set_ids:
+                    match = True
+            elif isinstance( doc_or_ref, DBRef ):
+                if doc_or_ref.id in second_set_ids:
+                    match = True
+            # elif isinstance( doc_or_ref, ObjectId ):
+            #     if doc_or_ref in second_set_ids:
+            #         match = True
 
-        if not match:
-            diff.add( doc_or_ref )
+            if not match:
+                diff.add( doc_or_ref )
 
     return diff
 

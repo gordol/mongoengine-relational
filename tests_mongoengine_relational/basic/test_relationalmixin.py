@@ -9,7 +9,7 @@ from bson import DBRef, ObjectId
 from pyramid import testing
 from pyramid.request import Request
 
-from mongoengine_relational.relationalmixin import set_difference
+from mongoengine_relational.relationalmixin import set_difference, equals
 
 from tests_mongoengine_relational.basic.documents import *
 from tests_mongoengine_relational.utils import Struct
@@ -181,7 +181,7 @@ class RelationsTestCase( unittest.TestCase ):
 
     def test_update_hasone( self ):
         d = self.data
-        
+
         # give 'artis' an office
         office = Office( id=ObjectId() )
         d.artis.office = office
@@ -264,7 +264,7 @@ class RelationsTestCase( unittest.TestCase ):
         office = DBRef( 'Office', ObjectId() )
         office_doc = Office( id=office.id )
 
-        self.assertTrue( lion_doc._equals( lion ) )
+        self.assertTrue( equals(lion_doc, lion) )
 
         # No diff; sets are for the same objectIds
         self.assertFalse( set_difference( { lion, giraffe }, { lion_doc, giraffe_doc } ) )
