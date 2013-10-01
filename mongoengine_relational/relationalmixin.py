@@ -373,7 +373,7 @@ class RelationManagerMixin( object ):
                 # This part mimics https://github.com/MongoEngine/mongoengine/commit/85b81fb12a3e6fd4a1129602c433ce381d45e925
                 if self._initialised:
                     try:
-                        if (key not in self._data or self._data[self.name] != value):
+                        if ( key not in self._data or self._data[ key ] != value ):
                             self._mark_as_changed(key)
                     except:
                         # Values cant be compared eg: naive and tz datetimes
@@ -509,9 +509,9 @@ class RelationManagerMixin( object ):
 
     def save( self, request=None, force_insert=False, validate=True, clean=True, write_concern=None,
               cascade=None, cascade_kwargs=None, _refs=None, **kwargs ):
-        ''' 
+        '''
         Override `save`. If a document is being saved for the first time,
-        it will be given an id (if the save was successful).  
+        it will be given an id (if the save was successful).
         '''
         request = request or ( kwargs and '_request' in kwargs and kwargs[ '_request' ] ) or self._request or None
         self._set_request( request )
@@ -1055,6 +1055,14 @@ def equals( doc_or_ref1, doc_or_ref2=False ):
     # If either one is an ObjectId or DBRef, compare ids.
     # (if the other object doesn't have a pk yet, they can't be equal).
     if doc_or_ref1 and doc_or_ref2:
+        # A `GenericReferenceField` is stored as a dict containing a DBRef as `_ref`,
+        # and the Document class as `_cls`.
+        if isinstance( doc_or_ref1, dict ) and '_ref' in doc_or_ref1:
+            doc_or_ref1 = doc_or_ref1[ '_ref' ]
+
+        if isinstance( doc_or_ref2, dict ) and '_ref' in doc_or_ref2:
+            doc_or_ref2 = doc_or_ref2[ '_ref' ]
+
         if isinstance( doc_or_ref1, (ObjectId, DBRef) ) or isinstance( doc_or_ref2, (ObjectId, DBRef) ):
             doc_or_ref1 = doc_or_ref1 if isinstance( doc_or_ref1, ObjectId ) else doc_or_ref1.id if isinstance( doc_or_ref1, DBRef ) else doc_or_ref1.pk
             doc_or_ref2 = doc_or_ref2 if isinstance( doc_or_ref2, ObjectId ) else doc_or_ref2.id if isinstance( doc_or_ref2, DBRef ) else doc_or_ref2.pk
