@@ -658,9 +658,7 @@ class RelationManagerMixin( object ):
                 added_docs, removed_docs = self.get_changes_for_field( name )
 
                 if name in self._memo_hasone:
-                    curr_value = added_docs.pop() if len( added_docs ) else None
-                    prev_value = removed_docs.pop() if len( removed_docs ) else None
-                    method( request, curr_value, prev_value, field_name=name )
+                    method( request, added_docs, removed_docs, field_name=name )
                 elif name in self._memo_hasmany:
                     method( request, added_docs, removed_docs, field_name=name )
                 elif name in self._memo_simple:
@@ -751,7 +749,10 @@ class RelationManagerMixin( object ):
                 except IndexError as e:
                     raise ValidationError( 'Cannot find Document for DBRef={}'.format( doc_or_ref ) )
 
-        return added_docs, removed_docs
+        if field_name in self._memo_hasone:
+            return added_docs.pop() if added_docs else None, removed_docs.pop() if removed_docs else None
+        else:
+            return added_docs, removed_docs
 
     def get_related_documents_to_update( self ):
         '''
@@ -766,8 +767,9 @@ class RelationManagerMixin( object ):
         for name in changed_fields:
             if hasattr( self._fields[ name ], 'related_name' ):
                 # This field is `managed`. Find out the changes.
-                added_relations, removed_relations[ name ] = self.get_changes_for_field( name )
-                to_save.update( added_relations )
+                added, removed = self.get_changes_for_field( name )
+                removed_relations[ name ] = removed if isinstance( removed, set ) else { removed }
+                to_save.update( added if isinstance( added, set ) else { added } )
 
         # What should happen to removed relations depends on the delete rule 
         # they registered with us, which in MongoEngine currently is one of:
