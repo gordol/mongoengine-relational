@@ -374,11 +374,11 @@ class RelationManagerMixin( object ):
                 if self._initialised:
                     try:
                         if ( key not in self._data or self._data[ key ] != value ):
-                            self._mark_as_changed(key)
+                            self._mark_as_changed( key )
                     except:
-                        # Values cant be compared eg: naive and tz datetimes
+                        # Values can't be compared eg: naive and tz datetimes
                         # So mark it as changed
-                        self._mark_as_changed(key)
+                        self._mark_as_changed( key )
 
                 self.update_hasone( key, value )
 
