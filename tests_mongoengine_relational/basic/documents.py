@@ -1,5 +1,5 @@
-from __future__ import print_function
-from __future__ import unicode_literals
+
+
 
 # Load `RelationManagerMixin` as early as possible, as it overrides classes on `mongoengine`
 from mongoengine_relational import RelationManagerMixin
@@ -34,7 +34,7 @@ class Zoo( RelationManagerMixin, Document ):
         print( ('animals updated; added={}, removed={}').format( added_docs, removed_docs ) )
 
     def __unicode__( self ):
-        return unicode('{}: `{}` (id={})'.format( self.__class__.__name__, self.name, self.pk ))
+        return str('{}: `{}` (id={})'.format( self.__class__.__name__, self.name, self.pk ))
 
 
 class Animal( RelationManagerMixin, Document ):
@@ -46,7 +46,7 @@ class Animal( RelationManagerMixin, Document ):
         print( ('zoo updated; added={}, removed={}').format( new_zoo, prev_zoo ) )
 
     def __unicode__( self ):
-        return unicode('{}: `{}` (id={})'.format( self.__class__.__name__, self.name, self.pk ))
+        return str('{}: `{}` (id={})'.format( self.__class__.__name__, self.name, self.pk ))
 
 
 class Node( RelationManagerMixin, Document ):

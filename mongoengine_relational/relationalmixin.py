@@ -1,5 +1,5 @@
-from __future__ import print_function
-from __future__ import unicode_literals
+
+
 
 from pyramid.request import Request
 
@@ -16,6 +16,7 @@ from .cache import DocumentCache
 
 from kitchen.text.converters import getwriter
 import sys
+import collections
 UTF8Writer = getwriter('utf8')
 sys.stdout = UTF8Writer(sys.stdout)
 
@@ -153,7 +154,7 @@ class ReferenceField( ReferenceField ):
     def __init__(self, document_type, **kwargs):
         related_name = kwargs.pop( 'related_name', None )
         super( ReferenceField, self ).__init__( document_type, **kwargs )
-        if related_name and isinstance( related_name, basestring ):
+        if related_name and isinstance( related_name, str ):
             self.related_name = related_name
 
     def __get__( self, instance, owner ):
@@ -198,7 +199,7 @@ class GenericReferenceField( GenericReferenceField ):
     def __init__(self, **kwargs):
         related_name = kwargs.pop( 'related_name', None )
         super( GenericReferenceField, self ).__init__( **kwargs )
-        if related_name and isinstance( related_name, basestring ):
+        if related_name and isinstance( related_name, str ):
             self.related_name = related_name
 
     def __get__(self, instance, owner):
@@ -236,7 +237,7 @@ class ListField( ListField ):
     def __init__(self, field=None, **kwargs):
         related_name = kwargs.pop('related_name', None)
         super(ListField, self).__init__(field=field, **kwargs)
-        if related_name and isinstance(related_name, basestring):
+        if related_name and isinstance(related_name, str):
             self.related_name = related_name
 
     def __get__( self, instance, owner ):
@@ -395,7 +396,7 @@ class RelationManagerMixin( object ):
         self._memo_hasmany = {}
         self._memo_simple = {}
 
-        for name, field in self._fields.iteritems():
+        for name, field in self._fields.items():
             if isinstance( field, ReferenceField ) or isinstance( field, GenericReferenceField ):
                 self._memo_hasone[ name ] = None
                 related_doc_type = getattr( field, 'document_type', None )
@@ -435,7 +436,7 @@ class RelationManagerMixin( object ):
         integrity on delete. If this isn't the case, register an appropriate
         one.
         '''
-        for field_name, field in self._fields.items():
+        for field_name, field in list(self._fields.items()):
             related_name = getattr( field, 'related_name', None )
             if not related_name:
                 # Skip this field since it is not managed by us.
@@ -476,7 +477,7 @@ class RelationManagerMixin( object ):
         if not self.pk:
             return False
 
-        for name in self._memo_hasone.keys():
+        for name in list(self._memo_hasone.keys()):
             # Remember a single reference
             if not field_name or field_name == name:
                 related_doc = self._data[ name ]
@@ -489,7 +490,7 @@ class RelationManagerMixin( object ):
                 self._cache.add( related_doc )
                 self._memo_hasone[ name ] = related_doc
 
-        for name in self._memo_hasmany.keys():
+        for name in list(self._memo_hasmany.keys()):
             # Remember a set of references
             if not field_name or field_name == name:
                 related_docs = set()
@@ -503,7 +504,7 @@ class RelationManagerMixin( object ):
                 self._cache.add( related_docs )
                 self._memo_hasmany[ name ] = related_docs
 
-        for name in self._memo_simple.keys():
+        for name in list(self._memo_simple.keys()):
             if not field_name or field_name == name:
                 self._memo_simple[ name ] = copy.copy( self._data[ name ] )
 
@@ -519,7 +520,7 @@ class RelationManagerMixin( object ):
         is_new = self.pk is None
 
         # Trigger `pre_save` hook if it's defined on this Document
-        if hasattr( self, 'pre_save' ) and callable( self.pre_save ):
+        if hasattr( self, 'pre_save' ) and isinstance( self.pre_save, collections.Callable):
             self.pre_save( request )
 
         # Trigger `on_change*` callbacks for changed relations, so we can set new privileges
@@ -540,7 +541,7 @@ class RelationManagerMixin( object ):
 
             # Trigger `on_change_pk` if it's present. `pk` is a special case since it isn't a relation,
             # so it won't be triggered through `_on_change`.
-            if hasattr( self, 'on_change_pk' ) and callable( self.on_change_pk ):
+            if hasattr( self, 'on_change_pk' ) and isinstance( self.on_change_pk, collections.Callable):
                 self.on_change_pk( request, self.pk, None, field_name=self._meta[ 'id_field' ] )
 
             # Remember changed fields for `post_save` before they get reset by `_on_change`.
@@ -548,7 +549,7 @@ class RelationManagerMixin( object ):
             self._on_change( request, changed_fields=changed_fields )
 
         # Trigger `post_save` hook if it's defined on this Document
-        if hasattr( self, 'post_save' ) and callable( self.post_save ):
+        if hasattr( self, 'post_save' ) and isinstance( self.post_save, collections.Callable):
             self.post_save( request, changed_fields )
 
         return result
@@ -574,7 +575,7 @@ class RelationManagerMixin( object ):
         self._set_request( request )
 
         # Trigger `pre_delete` hook if it's defined on this Document
-        if hasattr( self, 'pre_delete' ) and callable( self.pre_delete ):
+        if hasattr( self, 'pre_delete' ) and isinstance( self.pre_delete, collections.Callable):
             self.pre_delete( request )
 
         self.clear_relations()
@@ -582,7 +583,7 @@ class RelationManagerMixin( object ):
         result = super( RelationManagerMixin, self ).delete( write_concern=write_concern )
 
         # Trigger `post_delete` hook if it's defined on this Document
-        if hasattr( self, 'post_delete' ) and callable( self.post_delete ):
+        if hasattr( self, 'post_delete' ) and isinstance( self.post_delete, collections.Callable):
             self.post_delete( request )
 
         return result
@@ -600,7 +601,7 @@ class RelationManagerMixin( object ):
         self._set_request( request )
 
         # Trigger `pre_update` hook if it's defined on this Document
-        if hasattr( self, 'pre_update' ) and callable( self.pre_update ):
+        if hasattr( self, 'pre_update' ) and isinstance( self.pre_update, collections.Callable):
             self.pre_update( request )
 
         if field_name:
@@ -613,7 +614,7 @@ class RelationManagerMixin( object ):
             self._on_change( request, field_name, changed_fields={ field_name } )
 
         # Trigger `post_update` hook if it's defined on this Document
-        if hasattr( self, 'post_update' ) and callable( self.post_update ):
+        if hasattr( self, 'post_update' ) and isinstance( self.post_update, collections.Callable):
             self.post_update( request )
 
         return result
@@ -622,10 +623,10 @@ class RelationManagerMixin( object ):
         '''
         Clear relations from this document (both hasOne and hasMany)
         '''
-        for field_name, previous_related_doc in self._memo_hasone.iteritems():
+        for field_name, previous_related_doc in self._memo_hasone.items():
             self.update_hasone( field_name, None )
 
-        for field_name, previous_related_docs in self._memo_hasmany.iteritems():
+        for field_name, previous_related_docs in self._memo_hasmany.items():
             current_related_docs = set( self[ field_name ] )
             for related_doc in current_related_docs:
                 self.remove_hasmany( field_name, related_doc )
@@ -642,7 +643,7 @@ class RelationManagerMixin( object ):
         fields = changed_fields if changed_fields is not None else self.get_changed_fields()
 
         # The main `on_change` function should always be called, regardless of `field_name`!
-        if hasattr( self, 'on_change' ) and callable( self.on_change ):
+        if hasattr( self, 'on_change' ) and isinstance( self.on_change, collections.Callable):
             self.on_change( request=request, changed_fields=fields, field_name=field_name )
 
         for name in fields:
@@ -654,7 +655,7 @@ class RelationManagerMixin( object ):
             # is not set, or `field_name` matches `field`
             method = getattr( self, 'on_change_{}'.format( name ), None )
 
-            if callable( method ):
+            if isinstance( method, collections.Callable):
                 added_docs, removed_docs = self.get_changes_for_field( name )
 
                 if name in self._memo_hasone:
@@ -676,7 +677,7 @@ class RelationManagerMixin( object ):
         changed_fields = set()
 
         # For hasone, simply compare the values.
-        for field_name, previous_related_doc in self._memo_hasone.iteritems():
+        for field_name, previous_related_doc in self._memo_hasone.items():
             related_doc = self._data[ field_name ]
 
             if nequals( related_doc, previous_related_doc ):
@@ -684,14 +685,14 @@ class RelationManagerMixin( object ):
 
         # For hasmany, check if different values exist in the old set compared
         # to the new set (using symmetric_difference).
-        for field_name, previous_related_docs in self._memo_hasmany.iteritems():
+        for field_name, previous_related_docs in self._memo_hasmany.items():
             current_related_docs = set( self._data[ field_name ] )
 
             if len( set_difference( previous_related_docs, current_related_docs ) ) > 0 or \
                     len( set_difference( current_related_docs, previous_related_docs ) ) > 0:
                 changed_fields.add( field_name )
 
-        for field_name, previous_value in self._memo_simple.iteritems():
+        for field_name, previous_value in self._memo_simple.items():
             if previous_value != self._data[ field_name ]:
                 changed_fields.add( field_name )
 
@@ -786,7 +787,7 @@ class RelationManagerMixin( object ):
         #  - NULLIFY'd and PULL'ed relations are added to `to_save`
         #  - CASCADE'd relations are added to `to_delete`
         #  - DENY'd relations raise a ValidationError
-        for relation, removed_set in removed_relations.items():
+        for relation, removed_set in list(removed_relations.items()):
             field = self._fields[ relation ]
             related_name = getattr( field, 'related_name', '' )
             if not related_name:
@@ -825,7 +826,7 @@ class RelationManagerMixin( object ):
         # Iterate over our `hasone` fields. Since related data can still be
         # DBRefs, access fields by `_data` to avoid getting caught up in an
         # endless `dereferencing` loop.
-        for field_name in self._memo_hasone.keys():
+        for field_name in list(self._memo_hasone.keys()):
             related_doc = self._cache[ self._data[ field_name ] ]
             # print( 'updating `{0}.{1}`, related_doc=`{2}`'.format( self, field_name, related_doc ) )
             if isinstance( related_doc, RelationManagerMixin ):
@@ -896,8 +897,8 @@ class RelationManagerMixin( object ):
                 previous_related_docs = set( previous_related_docs )
 
             # Only compare actual documents; DBRefs get ignored here
-            previous_related_docs = filter( None, [ self._cache[ doc ] for doc in previous_related_docs ] )
-            current_related_docs = filter( None, [ self._cache[ doc ] for doc in set( current_related_docs ) ] )
+            previous_related_docs = [_f for _f in [ self._cache[ doc ] for doc in previous_related_docs ] if _f]
+            current_related_docs = [_f for _f in [ self._cache[ doc ] for doc in set( current_related_docs ) ] if _f]
 
             # Only process fields that have a related_name set.
             if hasattr( field, 'related_name' ):
@@ -999,7 +1000,7 @@ class RelationManagerMixin( object ):
             request.cache.add( self )
 
             if hasattr( self, '_cache' ):
-                request.cache.add( self._cache._documents.values() )
+                request.cache.add( list(self._cache._documents.values()) )
                 self._cache._documents.clear()
 
             self._cache = request.cache
