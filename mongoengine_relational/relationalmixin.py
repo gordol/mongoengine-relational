@@ -14,11 +14,6 @@ import copy
 
 from .cache import DocumentCache
 
-from kitchen.text.converters import getwriter
-import sys
-import collections
-UTF8Writer = getwriter('utf8')
-sys.stdout = UTF8Writer(sys.stdout)
 
 class BaseList( list ):
     '''
