@@ -1,6 +1,3 @@
-
-
-
 from pyramid.request import Request
 
 from mongoengine import Document, GenericReferenceField, ReferenceField, ListField, ValidationError
@@ -11,6 +8,7 @@ from mongoengine.queryset import CASCADE, DO_NOTHING, NULLIFY, DENY, PULL
 from bson import DBRef, ObjectId, SON
 
 import copy
+import collections
 
 from .cache import DocumentCache
 
