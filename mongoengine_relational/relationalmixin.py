@@ -657,11 +657,7 @@ class RelationManagerMixin( object ):
             if callable( method ):
                 added_docs, removed_docs = self.get_changes_for_field( name )
 
-                if name in self._memo_hasone:
-                    method( request, added_docs, removed_docs, field_name=name )
-                elif name in self._memo_hasmany:
-                    method( request, added_docs, removed_docs, field_name=name )
-                elif name in self._memo_simple:
+                if name in self._memo_hasone or name in self._memo_hasmany or name in self._memo_simple:
                     method( request, added_docs, removed_docs, field_name=name )
 
         # Sync the memos with the current Document state
