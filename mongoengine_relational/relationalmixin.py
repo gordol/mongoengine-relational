@@ -464,13 +464,13 @@ class RelationManagerMixin( object ):
                     print(' ~~ REGISTERING delete rule `{0}` on `{3}.{4}` for relation `{1}.{2}`.'.format(
                         'PULL' if new_rule == 4 else 'DENY' if new_rule == 3 else 'NULLIFY', self._class_name, field_name, related_doc_type and related_doc_type._class_name, related_name).encode("utf-8") )
 
-    def _memoize_fields( self, field_name=None ):
+    def _memoize_fields( self, updated_fields=None ):
         '''
         Creates a copy of the items in our fields so we can compare changes.
 
-        @param field_name: limit the fields that are memoized to the given field.
+        @param updated_fields: limit the fields that are memoized to the given fields.
             If not specified, all fields are memoized.
-        @type field_name: string
+        @type updated_fields: list<string>
         @return:
         '''
         if not self.pk:
@@ -478,7 +478,7 @@ class RelationManagerMixin( object ):
 
         for name in self._memo_hasone.keys():
             # Remember a single reference
-            if not field_name or field_name == name:
+            if not updated_fields or name in updated_fields:
                 related_doc = self._data[ name ]
 
                 # A `GenericReferenceField` is stored as a dict containing a DBRef as `_ref`,
@@ -491,7 +491,7 @@ class RelationManagerMixin( object ):
 
         for name in self._memo_hasmany.keys():
             # Remember a set of references
-            if not field_name or field_name == name:
+            if not updated_fields or name in updated_fields:
                 related_docs = set()
 
                 for related_doc in set( self._data[ name ] ):
@@ -504,7 +504,7 @@ class RelationManagerMixin( object ):
                 self._memo_hasmany[ name ] = related_docs
 
         for name in self._memo_simple.keys():
-            if not field_name or field_name == name:
+            if not updated_fields or name in updated_fields:
                 self._memo_simple[ name ] = copy.copy( self._data[ name ] )
 
     def save( self, request=None, force_insert=False, validate=True, clean=True, write_concern=None,
@@ -541,7 +541,7 @@ class RelationManagerMixin( object ):
             # Trigger `on_change_pk` if it's present. `pk` is a special case since it isn't a relation,
             # so it won't be triggered through `_on_change`.
             if hasattr( self, 'on_change_pk' ) and callable( self.on_change_pk ):
-                self.on_change_pk( request, self.pk, None, field_name=self._meta[ 'id_field' ] )
+                self.on_change_pk( request, self.pk, None, updated_fields=self._meta[ 'id_field' ] )
 
             # Remember changed fields for `post_save` before they get reset by `_on_change`.
             changed_fields = self.get_changed_fields()
@@ -587,14 +587,13 @@ class RelationManagerMixin( object ):
 
         return result
 
-    def update( self, request, field_name=None, **kwargs ):
+    def update( self, request, *args, **kwargs ):
         '''
         Update the Document.
 
         @param request:
         @type request: pyramid.request.Request
-        @param field_name:
-        @type field_name: string
+        @param args: a list of field names that should be updated
         @return:
         '''
         self._set_request( request )
@@ -603,14 +602,14 @@ class RelationManagerMixin( object ):
         if hasattr( self, 'pre_update' ) and callable( self.pre_update ):
             self.pre_update( request )
 
-        if field_name:
-            # Add `field_name` to kwargs, so it will be passed to the `update` call
+        # Add each `field_name` from args to kwargs, so it will be passed to the `update` call
+        for field_name in args:
             kwargs[ 'set__{}'.format( field_name ) ] = self[ field_name ]
 
         result = super( RelationManagerMixin, self ).update( **kwargs )
 
-        if field_name:
-            self._on_change( request, field_name, changed_fields={ field_name } )
+        if args:
+            self._on_change( request, changed_fields=args, updated_fields=args )
 
         # Trigger `post_update` hook if it's defined on this Document
         if hasattr( self, 'post_update' ) and callable( self.post_update ):
@@ -630,24 +629,25 @@ class RelationManagerMixin( object ):
             for related_doc in current_related_docs:
                 self.remove_hasmany( field_name, related_doc )
 
-    def _on_change( self, request, field_name=None, changed_fields=None ):
+    def _on_change( self, request, changed_fields=None, updated_fields=None ):
         '''
         Handle Document changes. Triggers `on_change*` callbacks to handle changes on specific relations.
 
-        @param field_name: Limit the fields that are processed (handlers triggerd, and memoized) to
-            the given field. If not specified, all fields are processed.
-        @type field_name: string
-        @param changed_fields: The set of `changed_fields` to process. Default: none
+        @param changed_fields: The set of `changed_fields` to process.
+            If not set, will be determined by calling `get_changed_fields`.
+        @param updated_fields: Limit the fields that are processed (handlers triggerd, and memoized) to
+            the given field names. If not specified, all fields are processed.
+        @type updated_fields: list<string>
         '''
         fields = changed_fields if changed_fields is not None else self.get_changed_fields()
 
-        # The main `on_change` function should always be called, regardless of `field_name`!
+        # The main `on_change` function should always be called, regardless of `updated_fields`!
         if hasattr( self, 'on_change' ) and callable( self.on_change ):
-            self.on_change( request=request, changed_fields=fields, field_name=field_name )
+            self.on_change( request=request, changed_fields=fields, updated_fields=updated_fields )
 
         for name in fields:
             # Proceed if `field_name` is unset, or we've arrived at the correct `field_name`.
-            if field_name and field_name != name:
+            if updated_fields and name not in updated_fields:
                 continue
 
             # Determine which callback to use. If a callback exists, invoke it if `field_name`
@@ -658,10 +658,10 @@ class RelationManagerMixin( object ):
                 added_docs, removed_docs = self.get_changes_for_field( name )
 
                 if name in self._memo_hasone or name in self._memo_hasmany or name in self._memo_simple:
-                    method( request, added_docs, removed_docs, field_name=name )
+                    method( request, added_docs, removed_docs, updated_fields=updated_fields )
 
         # Sync the memos with the current Document state
-        self._memoize_fields( field_name )
+        self._memoize_fields( updated_fields )
 
     def get_changed_fields( self ):
         ''' 
