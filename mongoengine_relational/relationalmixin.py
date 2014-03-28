@@ -593,7 +593,7 @@ class RelationManagerMixin( object ):
 
         @param request:
         @type request: pyramid.request.Request
-        @param args: a list of field names that should be updated
+        @param args: (a tuple of) field names that should be updated
         @return:
         '''
         self._set_request( request )
@@ -637,9 +637,10 @@ class RelationManagerMixin( object ):
             If not set, will be determined by calling `get_changed_fields`.
         @param updated_fields: Limit the fields that are processed (handlers triggerd, and memoized) to
             the given field names. If not specified, all fields are processed.
-        @type updated_fields: list<string>
+        @type updated_fields: list<string> or set<string>
         '''
-        fields = changed_fields if changed_fields is not None else self.get_changed_fields()
+        fields = set( changed_fields ) if changed_fields is not None else self.get_changed_fields()
+        updated_fields = set( updated_fields ) if updated_fields else None
 
         # The main `on_change` function should always be called, regardless of `updated_fields`!
         if hasattr( self, 'on_change' ) and callable( self.on_change ):
