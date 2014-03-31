@@ -470,11 +470,14 @@ class RelationManagerMixin( object ):
 
         @param updated_fields: limit the fields that are memoized to the given fields.
             If not specified, all fields are memoized.
-        @type updated_fields: list<string>
+        @type updated_fields: list<string> or set<string>
         @return:
         '''
         if not self.pk:
             return False
+
+        if updated_fields is None:
+            updated_fields = set()
 
         for name in self._memo_hasone.keys():
             # Remember a single reference
@@ -640,7 +643,7 @@ class RelationManagerMixin( object ):
         @type updated_fields: list<string> or set<string>
         '''
         fields = set( changed_fields ) if changed_fields is not None else self.get_changed_fields()
-        updated_fields = set( updated_fields ) if updated_fields else None
+        updated_fields = set( updated_fields ) if updated_fields is not None else set()
 
         # The main `on_change` function should always be called, regardless of `updated_fields`!
         if hasattr( self, 'on_change' ) and callable( self.on_change ):
