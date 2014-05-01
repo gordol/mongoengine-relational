@@ -380,9 +380,11 @@ class RelationManagerMixin( object ):
                         # So mark it as changed
                         self._mark_as_changed( key )
 
+                value = self._cache.get( value, value )
                 self.update_hasone( key, value )
 
             elif key in self._memo_hasmany:
+                value = [ self._cache.get( item, item ) for item in value ]
                 self.update_hasmany( key, value, self[ key ] )
 
         return super( RelationManagerMixin, self ).__setattr__( key, value )
@@ -1017,7 +1019,6 @@ def set_difference( first_set, second_set ):
     @param second_set:
     @return:
     '''
-
     second_set_ids = set()
     for doc_or_ref in second_set:
         if doc_or_ref:
@@ -1025,8 +1026,6 @@ def set_difference( first_set, second_set ):
                 second_set_ids.add(doc_or_ref.pk)
             elif isinstance( doc_or_ref, DBRef ):
                 second_set_ids.add(doc_or_ref.id)
-            # elif isinstance( doc_or_ref, ObjectId ):
-            #     second_set_ids.add(doc_or_ref)
 
     diff = set()
     for doc_or_ref in first_set:
@@ -1038,9 +1037,6 @@ def set_difference( first_set, second_set ):
             elif isinstance( doc_or_ref, DBRef ):
                 if doc_or_ref.id in second_set_ids:
                     match = True
-            # elif isinstance( doc_or_ref, ObjectId ):
-            #     if doc_or_ref in second_set_ids:
-            #         match = True
 
             if not match:
                 diff.add( doc_or_ref )

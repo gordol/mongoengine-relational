@@ -332,6 +332,19 @@ class RelationsTestCase( unittest.TestCase ):
         self.assertIn( 'animals', changes )
         self.assertIn( 'office', changes )
 
+    def test_reload( self ):
+        d = self.data
+
+        d.artis.save( self.request )
+        d.mammoth.save( self.request )
+        d.tiger.save( self.request )
+
+        d.artis.reload()
+
+        # Check if `reload` uses the documents as already present in the cache, or constructs new ones
+        self.assertListEqual( d.artis.animals, [ d.mammoth, d.tiger ] )
+        self.assertEqual( id( d.artis.animals[ 0 ] ), id( d.mammoth ) )
+
     def test_memoize_documents( self ):
         pass
 
