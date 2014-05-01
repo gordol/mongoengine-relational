@@ -118,6 +118,23 @@ class CacheTestCase( unittest.TestCase ):
 
         self.assertTrue( d.tiger in d.artis.animals )
 
+    def test_document_get_same_id( self ):
+        d = self.data
+
+        d.cache.add( d.dolphin )
+
+        cloned_dolphin = Animal( id=d.dolphin.id, name=d.dolphin.name )
+
+        self.assertEqual( d.dolphin, cloned_dolphin )
+        self.assertNotEqual( id( d.dolphin ), id( cloned_dolphin ) )
+
+        # Check that caching one instance of a document (with a certain `pk`) takes the place of other instances
+        # when requesting the cache copy for that `pk`.
+        self.assertEqual( d.dolphin, d.cache[ cloned_dolphin ] )
+        self.assertEqual( d.dolphin, d.cache[ d.dolphin ] )
+        self.assertEqual( id( d.dolphin ), id( d.cache[ d.dolphin ] ) )
+        self.assertEqual( id( d.dolphin ), id( d.cache[ cloned_dolphin ] ) )
+
     def test_document_get_dbref( self ):
         d = self.data
 

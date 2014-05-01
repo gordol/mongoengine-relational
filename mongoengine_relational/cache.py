@@ -35,7 +35,7 @@ class DocumentCache( object ):
             self._documents[ str( id ) ] = value
 
             # Set the `request` on the Document, so it can take advantage of the cache itself
-            if self.request:
+            if self.request and hasattr( value, '_set_request' ) and callable( value._set_request ):
                 value._set_request( self.request, update_relations=False )
 
             return value
@@ -45,21 +45,39 @@ class DocumentCache( object ):
 
     def __contains__( self, id ):
         object_id = id.id if isinstance( id, ( DBRef, Document ) ) else id
-        return self[ str( object_id ) ] is not None
+        return str( object_id ) in self._documents
 
     def __len__(self):
         return len( self._documents )
 
-    def get( self, id, default=None ):
-        try:
-            object_id = id.id if isinstance( id, ( DBRef, Document ) ) else id
+    def get( self, item, default=None ):
+        object_id = None
+        doc = None
 
-            if not str( object_id ) in self._documents and isinstance( id, Document ) and id.pk:
-                self[ id.pk ] = id
+        if isinstance( item, Document ):
+            object_id = item.pk
 
-            return id if isinstance( id, Document ) else self._documents[ str( object_id ) ]
-        except KeyError:
-            return default
+            # If it's a new document (no pk), just return it. We can't cache it yet
+            if not item.pk:
+                doc = item
+            # If it's an existing document and it's not yet in the cache, add it and return it
+            elif str( object_id ) not in self._documents:
+                self[ item.pk ] = item
+                doc = item
+
+        elif isinstance( item, DBRef ):
+            object_id = item.id
+
+        elif isinstance( item, ObjectId ):
+            object_id = item
+
+        if doc is None and object_id:
+            try:
+                doc = self._documents[ str( object_id ) ]
+            except KeyError:
+                pass
+
+        return doc or default
 
     def add( self, documents ):
         '''
@@ -69,43 +87,42 @@ class DocumentCache( object ):
         @type documents: Document or QuerySet or Iterable
         @rtype Document or Document[]
         '''
+        docs = None
+
         if isinstance( documents, Document ):
             # Set the `request` on the Document, so it can take advantage of the cache itself
-            if self.request:
-                documents._set_request( self.request, update_relations=False )
-
-            # If `documents` doesn't have a `pk`, continue.
-            # If it does have a `pk`, set it as the cache entry for this doc if there's no entry yet,
-            # or return the cache entry.
-            if documents.pk:
-                if documents in self:
-                    documents = self[ documents.pk ]
-                else:
-                    self[ documents.pk ] = documents
-
-            return documents
+            docs = self._add_single_document( documents )
 
         elif isinstance( documents, ( QuerySet, collections.Iterable ) ):
             docs = []
             for obj in documents:
                 if isinstance( obj, Document ):
-                    # Set the `request` on the Document, so it can take advantage of the cache itself
-                    if self.request:
-                        obj._set_request( self.request, update_relations=False )
-
-                    if obj.pk:
-                        if obj in self:
-                            obj = self[ obj.pk ]
-                        else:
-                            self[ obj.pk ] = obj
-
+                    obj = self._add_single_document( obj )
                     docs.append( obj )
 
+        return docs
 
-            return docs
+    def _add_single_document( self, doc ):
+        '''
+        Add a single document to the cache, or replace it with it's cached duplicate if an instance of that
+        document was already present.
 
-        else:
-            return None
+        @type doc: Document
+        '''
+        # Set the `request` on the Document, so it can take advantage of the cache itself
+        if self.request and hasattr( doc, '_set_request' ) and callable( doc._set_request ):
+            doc._set_request( self.request, update_relations=False )
+
+        # If `doc` doesn't have a `pk`, continue.
+        # If it does have a `pk`, set it as the cache entry for this document if there's no entry yet,
+        # or return the cache entry.
+        if doc.pk:
+            if doc in self:
+                doc = self._documents[ str( doc.pk ) ]
+            else:
+                self[ doc.pk ] = doc
+
+        return doc
 
     def remove( self, documents ):
         '''
@@ -117,8 +134,11 @@ class DocumentCache( object ):
         if isinstance( documents, ( DBRef, Document ) ):
             if documents.id:
                 del self._documents[ str( documents.id ) ]
+
         elif isinstance( documents, ObjectId ):
             del self._documents[ str( documents ) ]
+
         elif isinstance( documents, ( list, set, QuerySet ) ):
             for obj in documents:
-                self._documents.pop( str( obj.pk ) )
+                if obj.pk:
+                    del self._documents[ str( obj.pk ) ]
