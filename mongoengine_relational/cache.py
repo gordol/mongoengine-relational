@@ -68,7 +68,7 @@ class DocumentCache( object ):
         elif isinstance( item, DBRef ):
             object_id = item.id
 
-        elif isinstance( item, ObjectId ):
+        elif isinstance( item, ( ObjectId, basestring ) ):
             object_id = item
 
         if doc is None and object_id:

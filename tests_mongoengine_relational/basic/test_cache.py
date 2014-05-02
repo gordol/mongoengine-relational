@@ -111,11 +111,17 @@ class CacheTestCase( unittest.TestCase ):
         self.assertTrue( d.dolphin in d.cache )
         self.assertTrue( id( dolphin ) == id( d.dolphin ) )
 
+        # Try different ways of getting a cached doc
+        self.assertTrue( d.cache[ d.dolphin ], d.dolphin )
+        self.assertTrue( d.cache[ d.dolphin.id ], d.dolphin )
+        self.assertTrue( d.cache[ d.dolphin.pk ], d.dolphin )
+        self.assertTrue( d.cache[ d.dolphin.to_dbref() ], d.dolphin )
+        self.assertTrue( d.cache[ str( d.dolphin.pk ) ], d.dolphin )
+
         # Add `tiger` to the cache; its zoo isn't in there before, but should appear since `tiger` now knows the request
         self.assertFalse( d.artis in d.cache )
         d.cache.add( d.tiger )
-        # self.assertTrue( d.artis in d.cache )
-
+        self.assertTrue( d.artis in d.cache )
         self.assertTrue( d.tiger in d.artis.animals )
 
     def test_document_get_same_id( self ):
