@@ -14,10 +14,10 @@ import copy
 
 from .cache import DocumentCache
 
-from kitchen.text.converters import getwriter
-import sys
-UTF8Writer = getwriter('utf8')
-sys.stdout = UTF8Writer(sys.stdout)
+# from kitchen.text.converters import getwriter
+# import sys
+# UTF8Writer = getwriter('utf8')
+# sys.stdout = UTF8Writer(sys.stdout)
 
 class BaseList( list ):
     '''
@@ -463,8 +463,8 @@ class RelationManagerMixin( object ):
 
                 if delete_rule == DO_NOTHING:
                     self.register_delete_rule( related_doc_type, related_name, new_rule )
-                    print(' ~~ REGISTERING delete rule `{0}` on `{3}.{4}` for relation `{1}.{2}`.'.format(
-                        'PULL' if new_rule == 4 else 'DENY' if new_rule == 3 else 'NULLIFY', self._class_name, field_name, related_doc_type and related_doc_type._class_name, related_name).encode("utf-8") )
+                    # print(' ~~ REGISTERING delete rule `{0}` on `{3}.{4}` for relation `{1}.{2}`.'.format(
+                    #     'PULL' if new_rule == 4 else 'DENY' if new_rule == 3 else 'NULLIFY', self._class_name, field_name, related_doc_type and related_doc_type._class_name, related_name).encode("utf-8") )
 
     def _memoize_fields( self, updated_fields=None ):
         '''
