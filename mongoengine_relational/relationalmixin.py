@@ -736,7 +736,7 @@ class RelationManagerMixin( object ):
             raise RelationalError( "Can't find _memo entry for field_name={}".format( field_name ) )
 
         # Try to replace any stray DBFRefs with Documents
-        for doc_or_ref in added_docs:
+        for doc_or_ref in list( added_docs ):
             if isinstance( doc_or_ref, DBRef ):
                 try:
                     doc = self._cache[ doc_or_ref ]
@@ -745,7 +745,7 @@ class RelationManagerMixin( object ):
                 except IndexError as e:
                     raise ValidationError( 'Cannot find Document for DBRef={}'.format( doc_or_ref ) )
 
-        for doc_or_ref in removed_docs:
+        for doc_or_ref in list( removed_docs ):
             if isinstance( doc_or_ref, DBRef ):
                 try:
                     doc = self._cache[ doc_or_ref ]
